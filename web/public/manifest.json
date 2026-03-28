@@ -1,0 +1,26 @@
+{
+  "name": "YardScore",
+  "short_name": "YardScore",
+  "description": "Take a photo. Get a YardScore. See what to improve.",
+  "start_url": "/scan",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8f4ef",
+  "theme_color": "#2d6a4f",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["lifestyle", "utilities"],
+  "lang": "en-US"
+}
