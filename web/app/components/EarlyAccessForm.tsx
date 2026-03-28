@@ -10,6 +10,7 @@ export default function EarlyAccessForm({
   variant?: "light" | "dark";
 }) {
   const [email, setEmail] = useState("");
+  const [propertyType, setPropertyType] = useState("");
   const [state, setState] = useState<FormState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -22,7 +23,7 @@ export default function EarlyAccessForm({
       const res = await fetch("/api/early-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), propertyType: propertyType.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Something went wrong." }));
@@ -50,34 +51,39 @@ export default function EarlyAccessForm({
   const isDark = variant === "dark";
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-md">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          className={`flex-1 px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#52b788] ${
-            isDark
-              ? "bg-white/10 border border-white/20 text-white placeholder-white/50"
-              : "bg-white border border-gray-300 text-gray-800 placeholder-gray-400"
-          }`}
-        />
-        <button
-          type="submit"
-          disabled={state === "submitting"}
-          className={`px-6 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 ${
-            isDark
-              ? "bg-white text-[#2d6a4f] hover:bg-gray-100"
-              : "bg-[#2d6a4f] text-white hover:bg-[#1b4332]"
-          }`}
-        >
-          {state === "submitting" ? "Joining..." : "Join the List"}
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="w-full max-w-md space-y-3">
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email address"
+        className={`w-full px-4 py-3.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#86efac] ${
+          isDark
+            ? "bg-white/[0.06] border border-white/10 text-white placeholder-white/40"
+            : "bg-white border border-gray-300 text-gray-800 placeholder-gray-400"
+        }`}
+      />
+      <input
+        type="text"
+        value={propertyType}
+        onChange={(e) => setPropertyType(e.target.value)}
+        placeholder="What kind of property are you scanning?"
+        className={`w-full px-4 py-3.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#86efac] ${
+          isDark
+            ? "bg-white/[0.06] border border-white/10 text-white placeholder-white/40"
+            : "bg-white border border-gray-300 text-gray-800 placeholder-gray-400"
+        }`}
+      />
+      <button
+        type="submit"
+        disabled={state === "submitting"}
+        className="w-full px-6 py-3.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-60 bg-[#86efac] text-[#0d1f17] hover:bg-[#a7f3d0]"
+      >
+        {state === "submitting" ? "Joining..." : "Join the List"}
+      </button>
       {state === "error" && (
-        <p className={`text-sm mt-2 ${isDark ? "text-red-300" : "text-red-600"}`}>
+        <p className={`text-sm ${isDark ? "text-red-300" : "text-red-600"}`}>
           {errorMsg}
         </p>
       )}

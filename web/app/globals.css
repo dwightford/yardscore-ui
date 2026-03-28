@@ -4,11 +4,11 @@
 
 :root {
   --green: #2d6a4f;
-  --green-light: #52b788;
-  --sand: #f8f4ef;
+  --green-light: #86efac;
+  --dark: #0d1f17;
 }
 
 body {
-  background-color: var(--sand);
-  color: #1a1a1a;
+  background-color: var(--dark);
+  color: #f0f0f0;
 }
