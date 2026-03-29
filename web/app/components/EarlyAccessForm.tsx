@@ -10,6 +10,7 @@ export default function EarlyAccessForm({
   variant?: "light" | "dark";
 }) {
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [propertyType, setPropertyType] = useState("");
   const [state, setState] = useState<FormState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -23,7 +24,7 @@ export default function EarlyAccessForm({
       const res = await fetch("/api/early-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), propertyType: propertyType.trim() }),
+        body: JSON.stringify({ email: email.trim(), phone: phone.trim(), propertyType: propertyType.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Something went wrong." }));
@@ -58,6 +59,17 @@ export default function EarlyAccessForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email address"
+        className={`h-14 w-full rounded-2xl px-4 text-sm outline-none ${
+          isDark
+            ? "border border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
+            : "border border-gray-300 bg-white text-gray-800 placeholder:text-gray-400"
+        }`}
+      />
+      <input
+        type="tel"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="Phone number (we'll text you the app link)"
         className={`h-14 w-full rounded-2xl px-4 text-sm outline-none ${
           isDark
             ? "border border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
