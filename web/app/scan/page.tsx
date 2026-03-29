@@ -124,6 +124,8 @@ export default function ScanPage() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uploadingRef = useRef(false);
+  const classifyingRef = useRef(false);
+  const classifyQueueRef = useRef<Blob[]>([]);
   const headingRef = useRef<number | null>(null);
   const [gpsSignal, setGpsSignal] = useState<"strong" | "weak" | "none">("none");
 
@@ -276,7 +278,7 @@ export default function ScanPage() {
 
     // Frame capture every 3s
     intervalRef.current = setInterval(() => {
-      captureAndClassify(sessionId!, coords);
+      captureFrame(sessionId!, coords);
     }, 3000);
 
     // Elapsed timer
@@ -285,9 +287,9 @@ export default function ScanPage() {
     }, 1000);
   }, []);
 
-  // ── Capture + classify ──────────────────────────────────────────────────────
+  // ── Capture frame (fast, never blocks) ──────────────────────────────────────
 
-  async function captureAndClassify(
+  async function captureFrame(
     sessionId: string,
     initialCoords: { lat: number; lng: number } | null
   ) {
@@ -298,10 +300,9 @@ export default function ScanPage() {
       const blob = await captureFrameFromVideo(videoRef.current);
       if (!blob) return;
 
-      // Get fresh GPS
       const coords = await getGps() || initialCoords;
 
-      // Upload frame to session (persist)
+      // Upload frame to session (fast, ~0.5s)
       const fd = new FormData();
       fd.append("file", blob, `frame_${Date.now()}.jpg`);
       if (coords) {
@@ -319,58 +320,11 @@ export default function ScanPage() {
         if (r.ok) setState((prev) => ({ ...prev, frameCount: prev.frameCount + 1 }));
       }).catch(() => {});
 
-      // Classify with vision API (non-blocking)
-      setClassifying(true);
-      const classifyFd = new FormData();
-      classifyFd.append("file", blob, `classify_${Date.now()}.jpg`);
-
-      try {
-        const r = await fetch(`${API}/vision/classify`, {
-          method: "POST",
-          body: classifyFd,
-        });
-
-        if (r.ok) {
-          const data = await r.json();
-          if (data.observations && data.observations.length > 0) {
-            const newObs: Observation[] = data.observations.map((obs: any) => ({
-              id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              category: obs.category,
-              label: obs.label,
-              species: obs.species,
-              confidence: obs.confidence,
-              size: obs.size,
-              notes: obs.notes,
-              timestamp: Date.now(),
-              lat: coords?.lat ?? null,
-              lng: coords?.lng ?? null,
-            }));
-
-            setObservations((prev) => [...prev, ...newObs]);
-
-            // Update counts
-            setState((prev) => {
-              const counts = { ...prev.liveCounts };
-              for (const obs of newObs) {
-                if (obs.category === "tree") counts.trees++;
-                else if (obs.category === "shrub") counts.shrubs++;
-                else if (obs.category === "herb") counts.herbs++;
-                else if (obs.category === "ground_cover") counts.ground_cover++;
-              }
-              return { ...prev, liveCounts: counts };
-            });
-
-            // Show latest label
-            const best = newObs.reduce((a, b) => a.confidence > b.confidence ? a : b);
-            setLatestLabel(`${best.label}${best.species ? ` (${best.species})` : ""}`);
-            setTimeout(() => setLatestLabel(null), 4000);
-          }
-        }
-      } catch {
-        // Classification failed — frame still saved
-      } finally {
-        setClassifying(false);
+      // Queue for classification (don't await — runs in background)
+      if (!classifyingRef.current) {
+        classifyInBackground(blob, coords);
       }
+      // else: skip classification for this frame, GPU is busy
     } catch {
       // Frame capture failed
     } finally {
@@ -378,12 +332,76 @@ export default function ScanPage() {
     }
   }
 
+  // ── Classify in background (slow, ~10-80s, never blocks capture) ───────────
+
+  async function classifyInBackground(
+    blob: Blob,
+    coords: { lat: number; lng: number } | null,
+  ) {
+    classifyingRef.current = true;
+    setClassifying(true);
+
+    try {
+      const classifyFd = new FormData();
+      classifyFd.append("file", blob, `classify_${Date.now()}.jpg`);
+
+      const r = await fetch(`${API}/vision/classify`, {
+        method: "POST",
+        body: classifyFd,
+      });
+
+      if (r.ok) {
+        const data = await r.json();
+        if (data.observations && data.observations.length > 0) {
+          const newObs: Observation[] = data.observations.map((obs: any) => ({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            category: obs.category,
+            label: obs.label,
+            species: obs.species,
+            confidence: obs.confidence,
+            size: obs.size,
+            notes: obs.notes,
+            timestamp: Date.now(),
+            lat: coords?.lat ?? null,
+            lng: coords?.lng ?? null,
+          }));
+
+          setObservations((prev) => [...prev, ...newObs]);
+
+          // Update counts
+          setState((prev) => {
+            const counts = { ...prev.liveCounts };
+            for (const obs of newObs) {
+              if (obs.category === "tree") counts.trees++;
+              else if (obs.category === "shrub") counts.shrubs++;
+              else if (obs.category === "herb") counts.herbs++;
+              else if (obs.category === "ground_cover") counts.ground_cover++;
+            }
+            return { ...prev, liveCounts: counts };
+          });
+
+          // Show latest label with details
+          const best = newObs.reduce((a, b) => a.confidence > b.confidence ? a : b);
+          const labelParts = [best.label];
+          if (best.size) labelParts.push(`· ${best.size}`);
+          if (best.species) labelParts.push(`\n${best.species}`);
+          setLatestLabel(labelParts.join(" "));
+          setTimeout(() => setLatestLabel(null), 5000);
+        }
+      }
+    } catch {
+      // Classification failed — frame was still saved
+    } finally {
+      classifyingRef.current = false;
+      setClassifying(false);
+    }
+  }
+
   // ── Manual capture (tap) ────────────────────────────────────────────────────
 
   const manualCapture = useCallback(() => {
     if (state.sessionId && state.status === "scanning") {
-      captureAndClassify(state.sessionId, state.coords);
-      // Haptic feedback
+      captureFrame(state.sessionId, state.coords);
       if (navigator.vibrate) navigator.vibrate(50);
     }
   }, [state.sessionId, state.status, state.coords]);
@@ -514,16 +532,16 @@ export default function ScanPage() {
           {/* AI label overlay — floats in center when classification returns */}
           <div className="flex-1 flex items-center justify-center">
             {latestLabel && (
-              <div className="bg-black/60 backdrop-blur-md rounded-2xl px-5 py-3 border border-lime-300/30 animate-in fade-in">
-                <p className="text-lime-300 text-lg font-semibold text-center">{latestLabel}</p>
-                {classifying && (
-                  <p className="text-zinc-400 text-xs text-center mt-1">Identifying...</p>
-                )}
+              <div className="bg-black/70 backdrop-blur-md rounded-2xl px-6 py-4 border border-lime-300/40 shadow-lg shadow-lime-300/10 mx-8">
+                <p className="text-lime-300 text-xl font-bold text-center whitespace-pre-line">{latestLabel}</p>
               </div>
             )}
             {!latestLabel && classifying && (
-              <div className="bg-black/40 backdrop-blur-sm rounded-2xl px-4 py-2">
-                <p className="text-zinc-400 text-xs">Identifying...</p>
+              <div className="bg-black/40 backdrop-blur-sm rounded-2xl px-5 py-3 border border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 border-2 border-lime-300 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-zinc-300 text-sm">Identifying vegetation...</p>
+                </div>
               </div>
             )}
           </div>
