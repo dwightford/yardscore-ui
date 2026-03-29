@@ -1,36 +1,212 @@
+"use client";
+
+import { motion } from "framer-motion";
+import {
+  ArrowRight,
+  Camera,
+  MapPinned,
+  ScanLine,
+  Sprout,
+  Trees,
+  Waves,
+  ShieldCheck,
+  Home,
+  Flower2,
+  Building2,
+  Tractor,
+  BarChart3,
+  Sparkles,
+  CheckCircle2,
+  Radar,
+} from "lucide-react";
 import EarlyAccessForm from "./components/EarlyAccessForm";
 
-/* ── Inline SVG Icons ────────────────────────────────────────────────────── */
+/* ── Data ────────────────────────────────────────────────────────────────── */
 
-function IconLeaf({ className }: { className?: string }) {
+const releases = [
+  {
+    phase: "Live now",
+    title: "Release 1 — Scan & Count",
+    description:
+      "Walk a property with your phone. YardScore detects visible vegetation, places observations on the map, and produces an ecological score with evidence.",
+    bullets: [
+      "Real-time tree and shrub detection",
+      "Size classification",
+      "Ecological score with evidence",
+      "GPS-located observations",
+    ],
+  },
+  {
+    phase: "Coming soon",
+    title: "Release 2 — Species & Insights",
+    description:
+      "Move from counting what is present to understanding what matters: keystone species, invasives, and narrative site insights.",
+    bullets: [
+      "Species identification",
+      "Invasive detection",
+      "Keystone signals",
+      "Narrative ecological summaries",
+    ],
+  },
+  {
+    phase: "In development",
+    title: "Release 3 — Inspect & Detail",
+    description:
+      "Tap into individual plants and habitat features for health, native status, before-and-after comparisons, and shareable property portraits.",
+    bullets: [
+      "Plant detail cards",
+      "Health assessment",
+      "Before / after views",
+      "Shareable reports",
+    ],
+  },
+  {
+    phase: "Vision",
+    title: "Release 4 — Full Property Intelligence",
+    description:
+      "Unify boundaries, moisture, canopy, habitat, and improvement planning into a living digital twin of the land.",
+    bullets: [
+      "Boundary mapping",
+      "Soil and moisture analysis",
+      "Improvement planning",
+      "Change over time",
+    ],
+  },
+];
+
+const audiences = [
+  { icon: Home, title: "Homeowners", text: "See what is strong, what is weak, and where simple changes create value." },
+  { icon: Flower2, title: "Gardeners", text: "Scan beds and yard zones to guide planting, habitat, and seasonal decisions." },
+  { icon: Trees, title: "Arborists", text: "Capture canopy, context, and inventory data directly from the field." },
+  { icon: Building2, title: "Realtors", text: "Turn outdoor potential into visible, differentiated property intelligence." },
+  { icon: Tractor, title: "Nurseries", text: "Connect what is in the aisle or on the lot to an interpretable inventory layer." },
+  { icon: ShieldCheck, title: "Land Stewards", text: "Track restoration, habitat health, and improvement over time." },
+];
+
+const signals = [
+  { label: "Tree canopy", value: "+18" },
+  { label: "Native habitat", value: "+12" },
+  { label: "Invasive pressure", value: "-6" },
+  { label: "Moisture opportunity", value: "+4" },
+];
+
+const steps = [
+  {
+    icon: Camera,
+    title: "Observe",
+    text: "Walk the property with your phone and capture the living signals already present.",
+  },
+  {
+    icon: ScanLine,
+    title: "Interpret",
+    text: "Turn images and location data into counts, classifications, and ecological meaning.",
+  },
+  {
+    icon: MapPinned,
+    title: "Plan",
+    text: "See what to preserve, what to improve, and which changes matter most first.",
+  },
+  {
+    icon: BarChart3,
+    title: "Track",
+    text: "Build memory over time so the property becomes more legible season after season.",
+  },
+];
+
+/* ── Shared Components ───────────────────────────────────────────────────── */
+
+function SectionTitle({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
-      <path d="M12 10v6" /><path d="M9 13h6" />
-    </svg>
+    <div className="max-w-3xl">
+      <div className="mb-3 inline-flex rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.22em] text-emerald-200/80">
+        {eyebrow}
+      </div>
+      <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">{title}</h2>
+      <p className="mt-5 text-base leading-7 text-zinc-300 sm:text-lg">{body}</p>
+    </div>
   );
 }
 
-function IconSparkle({ className }: { className?: string }) {
+function GlowNode({ className }: { className: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.5-6.5-1.4 1.4M7.9 16.1l-1.4 1.4m12-1.4-1.4-1.4M7.9 7.9 6.5 6.5" />
-    </svg>
+    <div className={`absolute h-4 w-4 rounded-full bg-lime-200 shadow-[0_0_40px_14px_rgba(190,242,100,0.45)] ${className}`}>
+      <div className="absolute inset-[-8px] rounded-full border border-lime-200/40" />
+    </div>
   );
 }
 
-/* ── YardScore SVG Logo ──────────────────────────────────────────────────── */
-
-function YardScoreLogo({ className }: { className?: string }) {
+function PhoneMockup() {
   return (
-    <svg viewBox="0 0 220 44" fill="none" role="img" aria-label="YardScore" className={className}>
-      <rect width="44" height="44" rx="9" fill="#2d6a4f" />
-      <path d="M14 11 L22 21 L30 11" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="22" y1="21" x2="22" y2="29" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="13" y1="33" x2="31" y2="33" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" />
-      <text x="56" y="22" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" fontSize="18" fontWeight="600" letterSpacing="-0.4" fill="white">YardScore</text>
-      <text x="56" y="36" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" fontSize="8" fontWeight="500" letterSpacing="2" fill="rgba(255,255,255,0.35)">OBSERVATION → INTELLIGENCE</text>
-    </svg>
+    <div className="relative mx-auto w-[300px] rounded-[2.8rem] border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/40 backdrop-blur">
+      <div className="absolute left-1/2 top-3 h-6 w-28 -translate-x-1/2 rounded-full bg-zinc-900" />
+      <div className="overflow-hidden rounded-[2.2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(88,140,118,0.30),transparent_45%),linear-gradient(180deg,#08110c_0%,#0b1711_42%,#112219_100%)] p-4 pt-10">
+        <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="flex items-center gap-2 font-medium text-zinc-200">
+            <Sprout className="h-4 w-4 text-lime-300" />
+            YardScore
+          </div>
+          <div className="flex items-center gap-1 text-zinc-500">
+            <div className="h-2 w-2 rounded-full bg-lime-300" />
+            Live
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[1.8rem] border border-lime-200/20 bg-lime-100/5 p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="text-xs uppercase tracking-[0.22em] text-emerald-200/70">Property score</div>
+          <div className="mt-2 text-6xl font-semibold tracking-tight text-white">85</div>
+          <div className="mt-1 text-sm text-zinc-300">Resilient landscape</div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-left text-xs">
+            {signals.map((signal) => (
+              <div key={signal.label} className="rounded-2xl border border-white/[0.08] bg-white/5 px-3 py-2">
+                <div className="text-zinc-400">{signal.label}</div>
+                <div className="mt-1 font-medium text-lime-200">{signal.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {[
+            ["Habitat signal", "Edge corridor + pollinator activity"],
+            ["Canopy cluster", "6 mature trees detected nearby"],
+            ["Improvement", "Add understory layer along sunny edge"],
+          ].map(([title, subtitle]) => (
+            <div key={title} className="flex items-start justify-between rounded-2xl border border-white/[0.08] bg-white/[0.06] px-4 py-3">
+              <div>
+                <div className="text-sm font-medium text-white">{title}</div>
+                <div className="mt-1 text-xs leading-5 text-zinc-400">{subtitle}</div>
+              </div>
+              <ArrowRight className="mt-1 h-4 w-4 text-zinc-500" />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+          {[
+            ["15", "Trees"],
+            ["09", "Signals"],
+            ["99%", "Scan path"],
+          ].map(([value, label]) => (
+            <div key={label} className="rounded-2xl border border-white/[0.08] bg-emerald-400/[0.08] px-3 py-3">
+              <div className="font-semibold text-white">{value}</div>
+              <div className="mt-1 text-zinc-400">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniPreviewCard({ title, body, icon: Icon }: { title: string; body: string; icon: React.ComponentType<{ className?: string }> }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/10 backdrop-blur-sm">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-lime-200">
+        <Icon className="h-6 w-6" />
+      </div>
+      <h3 className="mt-5 text-xl font-semibold text-white">{title}</h3>
+      <p className="mt-3 text-sm leading-6 text-zinc-300">{body}</p>
+    </div>
   );
 }
 
@@ -38,368 +214,336 @@ function YardScoreLogo({ className }: { className?: string }) {
 
 export default function EcoEntryPage() {
   return (
-    <>
-      {/* ── Nav ──────────────────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-[#0d1f17]/90 backdrop-blur-md border-b border-white/5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-          <YardScoreLogo className="h-9 w-auto" />
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#vision" className="text-sm font-medium text-white/50 hover:text-white transition-colors">Vision</a>
-            <a href="#product" className="text-sm font-medium text-white/50 hover:text-white transition-colors">Product</a>
-            <a href="#who" className="text-sm font-medium text-white/50 hover:text-white transition-colors">Who It&apos;s For</a>
-            <a href="#early-access" className="text-sm font-medium text-white/50 hover:text-white transition-colors">Early Access</a>
+    <div className="min-h-screen bg-[#07110c] text-white">
+      {/* ── Hero wrapper with gradients ──────────────────────────────────── */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(167,243,208,0.14),transparent_28%),radial-gradient(circle_at_80%_10%,rgba(190,242,100,0.16),transparent_22%),radial-gradient(circle_at_bottom,rgba(20,83,45,0.38),transparent_44%)]" />
+        <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:80px_80px]" />
+
+        {/* ── Nav ────────────────────────────────────────────────────────── */}
+        <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+              <Sprout className="h-5 w-5 text-lime-300" />
+            </div>
+            <div>
+              <div className="text-lg font-semibold tracking-tight">YardScore</div>
+              <div className="text-xs uppercase tracking-[0.24em] text-zinc-400">Observation → Intelligence</div>
+            </div>
           </div>
-          <a href="#early-access" className="text-sm font-semibold text-[#0d1f17] bg-[#86efac] hover:bg-[#a7f3d0] px-5 py-2.5 rounded-full transition-colors">
-            Request Access
-          </a>
-        </div>
-      </nav>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative bg-[#0d1f17] overflow-hidden">
-        {/* Subtle radial glow */}
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[radial-gradient(ellipse_at_center,_rgba(134,239,172,0.06)_0%,_transparent_70%)] pointer-events-none" />
+          <nav className="hidden items-center gap-8 text-sm text-zinc-300 md:flex">
+            <a href="#vision" className="transition hover:text-white">Vision</a>
+            <a href="#how" className="transition hover:text-white">How It Works</a>
+            <a href="#audiences" className="transition hover:text-white">Built For</a>
+            <a href="#value" className="transition hover:text-white">Value</a>
+            <a href="#access" className="transition hover:text-white">Early Access</a>
+          </nav>
 
-        <div className="max-w-7xl mx-auto px-6 pt-20 pb-8 sm:pt-28 sm:pb-12">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
-            {/* Left: Copy */}
-            <div className="max-w-xl">
-              <div className="inline-flex items-center rounded-full bg-white/[0.06] border border-white/10 px-4 py-1.5 mb-8">
-                <span className="text-xs font-semibold text-[#86efac] uppercase tracking-widest">
-                  The intelligence layer for living landscapes
-                </span>
-              </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold text-white leading-[1.08] tracking-tight">
-                See what your land is telling you.
-              </h1>
-              <p className="mt-6 text-lg text-white/60 leading-relaxed">
-                YardScore turns scans, sightings, and site context into ecological intelligence.
-                Walk a property with your phone, map what is there, surface what matters,
-                and understand what the land can become.
-              </p>
-              <div className="mt-10 flex flex-wrap gap-4">
-                <a href="#early-access" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-[#86efac] text-[#0d1f17] font-semibold text-sm hover:bg-[#a7f3d0] transition-colors shadow-lg shadow-[#86efac]/10">
-                  Request Early Access <span aria-hidden>&rarr;</span>
-                </a>
-                <a href="#vision" className="inline-flex items-center px-7 py-3.5 rounded-full border border-white/20 text-white/80 font-semibold text-sm hover:border-white/40 hover:text-white transition-colors">
-                  See a Sample Scan
-                </a>
-              </div>
+          <div className="hidden md:block">
+            <a href="#access" className="rounded-full border border-lime-300/30 bg-lime-300/10 px-5 py-2.5 text-sm font-medium text-lime-100 transition hover:bg-lime-300/20">
+              Request Access
+            </a>
+          </div>
+        </header>
 
-              {/* Proof cards */}
-              <div className="mt-14 grid grid-cols-3 gap-4">
-                {[
-                  { val: "15", label: "trees recognized in a single walk" },
-                  { val: "85", label: "example resilience score with evidence" },
-                  { val: "4", label: "product releases from scan to full intelligence" },
-                ].map((s) => (
-                  <div key={s.val} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                    <p className="text-2xl font-bold text-white">{s.val}</p>
-                    <p className="text-[11px] text-white/40 mt-1.5 leading-snug">{s.label}</p>
-                  </div>
-                ))}
-              </div>
+        {/* ── Section 1: Hero ────────────────────────────────────────────── */}
+        <section className="relative z-10 mx-auto grid max-w-7xl gap-16 px-6 pb-24 pt-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-8 lg:pb-32 lg:pt-14">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl"
+          >
+            <div className="inline-flex rounded-full border border-lime-300/20 bg-lime-300/10 px-4 py-2 text-xs uppercase tracking-[0.24em] text-lime-100/90">
+              The intelligence layer for living landscapes
+            </div>
+            <h1 className="mt-7 text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl">
+              See what your land is telling you.
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-300 sm:text-xl">
+              YardScore turns scans, sightings, and site context into ecological intelligence. Walk a property with your phone,
+              map what is there, surface what matters, and understand what the land can become.
+            </p>
+
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+              <a href="#access" className="group inline-flex items-center justify-center rounded-full bg-lime-300 px-6 py-3.5 text-sm font-semibold text-zinc-950 transition hover:scale-[1.01]">
+                Request Early Access
+                <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-0.5" />
+              </a>
+              <a href="#vision" className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-white/10">
+                See a Sample Scan
+              </a>
             </div>
 
-            {/* Right: Constructed hero visual */}
-            <div className="hidden lg:block relative">
-              {/* Glow dots */}
-              <div className="absolute top-8 right-8 w-3 h-3 rounded-full bg-[#86efac]/30 blur-sm" />
-              <div className="absolute bottom-32 left-4 w-2 h-2 rounded-full bg-[#86efac]/20 blur-sm" />
+            <div className="mt-12 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-3xl font-semibold text-white">15</div>
+                <div className="mt-2 text-sm text-zinc-400">trees recognized in a single walk</div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-3xl font-semibold text-white">85</div>
+                <div className="mt-2 text-sm text-zinc-400">example resilience score with evidence</div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-3xl font-semibold text-white">4</div>
+                <div className="mt-2 text-sm text-zinc-400">product releases from scan to full intelligence</div>
+              </div>
+            </div>
+          </motion.div>
 
-              {/* Live Property Signals card */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 mb-4">
-                <p className="text-[10px] font-semibold text-[#86efac] uppercase tracking-widest mb-2">Live Property Signals</p>
-                <p className="text-white font-semibold text-lg mb-1">Ecological score for the site</p>
-                <p className="text-white/40 text-xs leading-relaxed">
-                  Not just detection. The scanner reads the land, identifies habitat structure,
-                  and turns field observations into usable property intelligence.
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.12 }}
+            className="relative hidden min-h-[640px] lg:block"
+          >
+            <div className="absolute inset-0 rounded-[2.5rem] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(173,255,47,0.14),transparent_24%),linear-gradient(180deg,rgba(10,22,14,0.1),rgba(4,10,7,0.78))]" />
+            <div className="absolute inset-x-6 bottom-6 top-6 rounded-[2.4rem] bg-[radial-gradient(circle_at_50%_40%,rgba(163,230,53,0.08),transparent_15%),radial-gradient(circle_at_15%_70%,rgba(190,242,100,0.14),transparent_16%),radial-gradient(circle_at_80%_25%,rgba(74,222,128,0.12),transparent_18%),linear-gradient(180deg,rgba(14,28,18,0.55),rgba(10,18,13,0.85))] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
+              <div className="absolute inset-0 opacity-80">
+                <div className="absolute left-[12%] top-[30%] h-px w-[30%] rotate-[12deg] bg-lime-200/60" />
+                <div className="absolute left-[21%] top-[46%] h-px w-[48%] -rotate-[7deg] bg-lime-200/45" />
+                <div className="absolute left-[8%] top-[63%] h-px w-[60%] rotate-[8deg] bg-lime-200/45" />
+                <div className="absolute left-[48%] top-[54%] h-px w-[32%] rotate-[18deg] bg-lime-200/40" />
+                <div className="absolute left-[40%] top-[28%] h-px w-[35%] -rotate-[12deg] bg-lime-200/30" />
+              </div>
+
+              <GlowNode className="left-[12%] top-[62%]" />
+              <GlowNode className="left-[26%] top-[34%]" />
+              <GlowNode className="left-[56%] top-[72%]" />
+              <GlowNode className="left-[74%] top-[48%]" />
+              <GlowNode className="left-[84%] top-[66%]" />
+
+              <div className="absolute left-8 top-10 max-w-[220px] rounded-3xl border border-white/10 bg-[#0d1712]/85 p-5 backdrop-blur-md">
+                <div className="text-xs uppercase tracking-[0.22em] text-emerald-200/70">Live property signals</div>
+                <div className="mt-3 text-lg font-medium text-white">Ecological context in the field</div>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">
+                  Not just a pretty mockup. The scene itself becomes the interface: canopy, habitat, risk, and next steps.
                 </p>
               </div>
 
-              {/* Phone mockup — constructed, not a screenshot */}
-              <div className="relative mx-auto max-w-[280px]">
-                <div className="rounded-[2rem] border-2 border-white/10 bg-[#111a14] p-5 shadow-2xl shadow-black/40">
-                  {/* Phone header */}
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2">
-                      <IconLeaf className="w-4 h-4 text-[#86efac]" />
-                      <span className="text-white text-xs font-semibold">YardScore</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#86efac]" />
-                      <span className="text-[10px] text-white/50">Live</span>
-                    </div>
-                  </div>
-                  {/* Score */}
-                  <div className="text-center border border-white/10 rounded-xl py-5 mb-4 bg-white/[0.02]">
-                    <p className="text-[9px] font-semibold text-[#86efac] uppercase tracking-widest mb-1">Property Score</p>
-                    <p className="text-5xl font-bold text-white">85</p>
-                    <p className="text-xs text-white/50 mt-1">Resilient landscape</p>
-                  </div>
-                  {/* Metric grid */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Tree canopy", val: "+18", color: "text-[#86efac]" },
-                      { label: "Native habitat", val: "+12", color: "text-[#86efac]" },
-                      { label: "Invasive pressure", val: "-6", color: "text-red-400" },
-                      { label: "Moisture opportunity", val: "+4", color: "text-[#86efac]" },
-                    ].map((m) => (
-                      <div key={m.label} className="border border-white/10 rounded-lg p-2.5 bg-white/[0.02]">
-                        <p className="text-[10px] text-white/40">{m.label}</p>
-                        <p className={`text-sm font-bold ${m.color}`}>{m.val}</p>
-                      </div>
-                    ))}
-                  </div>
+              <div className="absolute bottom-8 left-8 hidden max-w-[240px] rounded-3xl border border-white/10 bg-[#0d1712]/85 p-5 backdrop-blur-md md:block">
+                <div className="flex items-center gap-3 text-white">
+                  <Radar className="h-5 w-5 text-lime-300" />
+                  <span className="font-medium">Observation network</span>
                 </div>
+                <p className="mt-3 text-sm leading-6 text-zinc-300">
+                  Phones, maps, imagery, and field context combine into a usable score instead of a pile of disconnected data.
+                </p>
               </div>
 
-              {/* Signal cards beside phone */}
-              <div className="absolute right-0 top-[55%] space-y-2 max-w-[200px]">
-                {[
-                  { title: "Habitat signal", desc: "Edge corridor + pollinator activity" },
-                  { title: "Canopy cluster", desc: "6 mature trees detected nearby" },
-                  { title: "Improvement", desc: "Add understory along sunny edge" },
-                ].map((s) => (
-                  <div key={s.title} className="rounded-xl border border-white/10 bg-[#0d1f17]/90 backdrop-blur-sm px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-white">{s.title}</p>
-                      <span className="text-white/30 text-xs">&rarr;</span>
-                    </div>
-                    <p className="text-[10px] text-white/40 mt-0.5">{s.desc}</p>
+              <div className="absolute inset-x-0 top-[18%] flex justify-center">
+                <PhoneMockup />
+              </div>
+            </div>
+          </motion.div>
+        </section>
+      </div>
+
+      {/* ── Section 2: Credential Strip ──────────────────────────────────── */}
+      <section className="border-y border-white/[0.08] bg-black/20">
+        <div className="mx-auto grid max-w-7xl gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
+          {[
+            ["Release 1", "Scan, count, score, and map property observations"],
+            ["Field first", "Built around walking the land, not filling out forms"],
+            ["Evidence based", "Scores are tied to visible signals and map context"],
+            ["Platform path", "Designed to grow into full property intelligence"],
+          ].map(([title, text]) => (
+            <div key={title} className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-4">
+              <div className="text-sm font-medium text-white">{title}</div>
+              <div className="mt-1 text-sm text-zinc-400">{text}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Section 3: Product Vision ────────────────────────────────────── */}
+      <section id="vision" className="mx-auto max-w-7xl px-6 py-24 lg:px-8">
+        <SectionTitle
+          eyebrow="Product vision"
+          title="From scan to spatial intelligence"
+          body="Start with what is usable now, then show a believable path toward species insight, inspectable details, and a full digital twin of the property."
+        />
+
+        <div className="mt-14 grid gap-6 lg:grid-cols-2">
+          {releases.map((release, index) => (
+            <motion.div
+              key={release.title}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-120px" }}
+              transition={{ duration: 0.45, delay: index * 0.06 }}
+              className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-7 shadow-2xl shadow-black/10"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <span className="rounded-full border border-lime-300/20 bg-lime-300/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-lime-100">
+                  {release.phase}
+                </span>
+                <Sparkles className="h-5 w-5 text-lime-300/70" />
+              </div>
+              <h3 className="mt-5 text-2xl font-semibold text-white">{release.title}</h3>
+              <p className="mt-4 text-sm leading-7 text-zinc-300">{release.description}</p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {release.bullets.map((bullet) => (
+                  <div key={bullet} className="flex items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-zinc-200">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-lime-300" />
+                    <span>{bullet}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Credential strip */}
-        <div className="max-w-7xl mx-auto px-6 pb-16 sm:pb-20">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8">
-            {[
-              { title: "Release 1", desc: "Scan, count, score, and map property observations" },
-              { title: "Field first", desc: "Built around walking the land, not filling out forms" },
-              { title: "Evidence based", desc: "Scores are tied to visible signals and map context" },
-              { title: "Platform path", desc: "Designed to grow into full property intelligence" },
-            ].map((c) => (
-              <div key={c.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                <p className="text-sm font-semibold text-white mb-1">{c.title}</p>
-                <p className="text-[11px] text-white/40 leading-snug">{c.desc}</p>
-              </div>
-            ))}
-          </div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
-      {/* ── Product Vision — Release Grid ────────────────────────────────── */}
-      <section id="vision" className="bg-[#0f231a]">
-        <div className="max-w-7xl mx-auto px-6 py-20 sm:py-28">
-          <div className="inline-flex items-center rounded-full bg-white/[0.06] border border-white/10 px-4 py-1.5 mb-6">
-            <span className="text-xs font-semibold text-[#86efac] uppercase tracking-widest">Product Vision</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            From scan to spatial intelligence
-          </h2>
-          <p className="text-white/50 max-w-2xl mb-14 leading-relaxed">
-            Start with what is usable now, then show a believable path toward species insight,
-            inspectable details, and a full digital twin of the property.
-          </p>
-
-          {/* 2x2 Release grid */}
-          <div className="grid sm:grid-cols-2 gap-6">
-            {[
-              {
-                status: "Live now", statusColor: "bg-[#86efac] text-[#0d1f17]",
-                release: "Release 1", title: "Scan & Count",
-                desc: "Walk a property with your phone. YardScore detects visible vegetation, places observations on the map, and produces an ecological score with evidence.",
-                features: ["Real-time tree and shrub detection", "Size classification", "Ecological score with evidence", "GPS-located observations"],
-              },
-              {
-                status: "Coming soon", statusColor: "bg-yellow-400/90 text-[#0d1f17]",
-                release: "Release 2", title: "Species & Insights",
-                desc: "Move from counting what is present to understanding what matters: keystone species, invasives, and narrative site insights.",
-                features: ["Species identification", "Invasive detection", "Keystone signals", "Narrative ecological summaries"],
-              },
-              {
-                status: "In development", statusColor: "bg-blue-400/90 text-[#0d1f17]",
-                release: "Release 3", title: "Inspect & Detail",
-                desc: "Tap into individual plants and habitat features for health, native status, before-and-after comparisons, and shareable property portraits.",
-                features: ["Plant detail cards", "Health assessment", "Before / after views", "Shareable reports"],
-              },
-              {
-                status: "Vision", statusColor: "bg-purple-400/90 text-[#0d1f17]",
-                release: "Release 4", title: "Full Property Intelligence",
-                desc: "Unify boundaries, moisture, canopy, habitat, and improvement planning into a living digital twin of the land.",
-                features: ["Boundary mapping", "Soil and moisture analysis", "Improvement planning", "Change over time"],
-              },
-            ].map((r) => (
-              <div key={r.title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-7">
-                <div className="flex items-center justify-between mb-5">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full ${r.statusColor}`}>
-                    {r.status}
-                  </span>
-                  <IconSparkle className="w-5 h-5 text-white/15" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-1">
-                  {r.release} &mdash; {r.title}
-                </h3>
-                <p className="text-white/50 text-sm leading-relaxed mb-5">{r.desc}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {r.features.map((f) => (
-                    <div key={f} className="flex items-center gap-2 rounded-lg bg-white/[0.04] border border-white/5 px-3 py-2">
-                      <span className="text-[#86efac] text-xs">&#10003;</span>
-                      <span className="text-white/60 text-xs">{f}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── How It Works ─────────────────────────────────────────────────── */}
-      <section className="bg-[#0d1f17]">
-        <div className="max-w-7xl mx-auto px-6 py-20 sm:py-28">
-          <div className="inline-flex items-center rounded-full bg-white/[0.06] border border-white/10 px-4 py-1.5 mb-6">
-            <span className="text-xs font-semibold text-[#86efac] uppercase tracking-widest">How It Works</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Observe. Interpret. Plan. Track.
-          </h2>
-          <p className="text-white/50 max-w-2xl mb-14 leading-relaxed">
-            The operational loop is strong once you see the sequence. Walk the land, turn signals
-            into meaning, decide what matters, and build memory over time.
-          </p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              {
-                step: "01", title: "Observe",
-                desc: "Walk the property with your phone and capture the living signals already present.",
-                icon: "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7Z",
-              },
-              {
-                step: "02", title: "Interpret",
-                desc: "Turn images and location data into counts, classifications, and ecological meaning.",
-                icon: "M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.3 24.3 0 0 1 4.5 0m0 0v5.714a2.25 2.25 0 0 0 .659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 0 1-1.59.66H9.06a2.25 2.25 0 0 1-1.591-.659L5 14.5m14 0V5.846a2.25 2.25 0 0 0-1.883-2.22",
-              },
-              {
-                step: "03", title: "Plan",
-                desc: "See what to preserve, what to improve, and which changes matter most first.",
-                icon: "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.4 48.4 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5a2.25 2.25 0 0 0 2.25 2.25h.75",
-              },
-              {
-                step: "04", title: "Track",
-                desc: "Build memory over time so the property becomes more legible season after season.",
-                icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z",
-              },
-            ].map((s) => (
-              <div key={s.step} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center mb-5">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#86efac]">
-                    <path d={s.icon} />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-white mb-2">{s.title}</h3>
-                <p className="text-white/40 text-sm leading-relaxed">{s.desc}</p>
-                <p className="text-white/15 text-xs font-mono mt-4">{s.step}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Who It's For ─────────────────────────────────────────────────── */}
-      <section id="who" className="bg-[#0f231a]">
-        <div className="max-w-7xl mx-auto px-6 py-20 sm:py-28">
-          <div className="inline-flex items-center rounded-full bg-white/[0.06] border border-white/10 px-4 py-1.5 mb-6">
-            <span className="text-xs font-semibold text-[#86efac] uppercase tracking-widest">Built For</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            People who think beyond curb appeal
-          </h2>
-          <p className="text-white/50 max-w-2xl mb-14 leading-relaxed">
-            YardScore serves anyone who wants to understand and improve living property &mdash;
-            from a single backyard to managed landscapes.
-          </p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              { role: "Homeowners", value: "See what is strong, what is weak, and where simple changes create value.", icon: "M2.25 12l8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" },
-              { role: "Gardeners", value: "Scan beds and yard zones to guide planting, habitat, and seasonal decisions.", icon: "M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" },
-              { role: "Arborists", value: "Capture canopy, context, and inventory data directly from the field.", icon: "M6.429 6.429A9 9 0 1 0 21 12a9 9 0 0 0-2.021-5.571M6.429 6.429 12 12m-5.571-5.571L3 3" },
-              { role: "Realtors", value: "Turn outdoor potential into visible, differentiated property intelligence.", icon: "M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" },
-              { role: "Nurseries", value: "Connect what is in the aisle or on the lot to an interpretable inventory layer.", icon: "M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" },
-              { role: "Land Stewards", value: "Track restoration, habitat health, and improvement over time.", icon: "M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934a1.12 1.12 0 0 1-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934a1.12 1.12 0 0 1 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" },
-            ].map((p) => (
-              <div key={p.role} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center mb-4">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#86efac]">
-                    <path d={p.icon} />
-                  </svg>
-                </div>
-                <h3 className="text-base font-bold text-white mb-2">{p.role}</h3>
-                <p className="text-white/40 text-sm leading-relaxed">{p.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Value — Small Property. Bigger Picture. ──────────────────────── */}
-      <section id="product" className="bg-[#0d1f17]">
-        <div className="max-w-7xl mx-auto px-6 py-20 sm:py-28">
-          <div className="grid lg:grid-cols-2 gap-14 items-start">
-            {/* Left: Copy + question cards */}
+      {/* ── Section 4: Why This Version Works ────────────────────────────── */}
+      <section id="why" className="bg-[linear-gradient(180deg,rgba(5,12,9,0),rgba(12,30,20,0.6),rgba(5,12,9,0))]">
+        <div className="mx-auto max-w-7xl px-6 py-24 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
             <div>
-              <div className="inline-flex items-center rounded-full bg-white/[0.06] border border-white/10 px-4 py-1.5 mb-6">
-                <span className="text-xs font-semibold text-[#86efac] uppercase tracking-widest">Value</span>
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
-                Small property. Bigger picture.
-              </h2>
-              <p className="text-white/50 leading-relaxed mb-10">
-                The product is not just about identifying what is in frame. It is about helping people
-                understand ecological strength, improvement opportunity, and change over time.
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  "What is ecologically strong here?",
-                  "What improvements matter most?",
-                  "Which early steps add value?",
-                  "How does this property compare nearby?",
-                  "What should I preserve first?",
-                  "What changed since last season?",
-                ].map((q) => (
-                  <div key={q} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 flex items-start gap-2">
-                    <span className="text-[#86efac] text-xs mt-0.5 flex-none">&#10003;</span>
-                    <span className="text-white/60 text-xs leading-snug">{q}</span>
-                  </div>
-                ))}
-              </div>
+              <SectionTitle
+                eyebrow="Why this version works"
+                title="Make the product thesis visible above the fold"
+                body="The hero should immediately show the central idea: the land is being interpreted. That means a real environment, a phone anchored in the scene, and subtle signal overlays that make ecological intelligence feel tangible."
+              />
             </div>
 
-            {/* Right: Category cards */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <MiniPreviewCard
+                icon={Trees}
+                title="Landscape-first hero"
+                body="Swap the detached app screenshot for a cinematic property scene with visible ecological signals."
+              />
+              <MiniPreviewCard
+                icon={MapPinned}
+                title="Proof before poetry"
+                body="Move real capabilities closer to the top so the vision has credibility immediately."
+              />
+              <MiniPreviewCard
+                icon={Waves}
+                title="Better narrative flow"
+                body="Reduce repeated positioning language and let each section do a distinct job."
+              />
+              <MiniPreviewCard
+                icon={ShieldCheck}
+                title="Premium, not sci-fi"
+                body="Keep the moody ecological atmosphere, but stay grounded enough to feel like a serious product."
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 5: How It Works ──────────────────────────────────────── */}
+      <section id="how" className="mx-auto max-w-7xl px-6 py-24 lg:px-8">
+        <SectionTitle
+          eyebrow="How it works"
+          title="Observe. Interpret. Plan. Track."
+          body="This is the operational loop beneath the brand. It should read cleanly and quickly, because the product idea is strong once the user sees the sequence."
+        />
+
+        <div className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {steps.map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <motion.div
+                key={step.title}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.4, delay: index * 0.07 }}
+                className="relative rounded-[2rem] border border-white/10 bg-white/5 p-7"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-lime-300/20 bg-lime-300/10 text-lime-100">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div className="mt-5 text-2xl font-semibold text-white">{step.title}</div>
+                <p className="mt-3 text-sm leading-7 text-zinc-300">{step.text}</p>
+                <div className="mt-8 text-sm text-zinc-500">0{index + 1}</div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Section 6: Built For ─────────────────────────────────────────── */}
+      <section id="audiences" className="bg-black/20">
+        <div className="mx-auto max-w-7xl px-6 py-24 lg:px-8">
+          <SectionTitle
+            eyebrow="Built for"
+            title="People who think beyond curb appeal"
+            body="YardScore serves anyone who wants to understand and improve living property — from a single backyard to managed landscapes."
+          />
+
+          <div className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {audiences.map((audience, index) => {
+              const Icon = audience.icon;
+              return (
+                <motion.div
+                  key={audience.title}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-100px" }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-6"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                    <Icon className="h-6 w-6 text-lime-300" />
+                  </div>
+                  <h3 className="mt-5 text-xl font-semibold text-white">{audience.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-zinc-300">{audience.text}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 7: Value ─────────────────────────────────────────────── */}
+      <section id="value" className="mx-auto max-w-7xl px-6 py-24 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[1fr_0.95fr] lg:items-center">
+          <div>
+            <SectionTitle
+              eyebrow="Value"
+              title="Small property. Bigger picture."
+              body="The product is not just about identifying what is in frame. It is about helping people understand ecological strength, improvement opportunity, and change over time."
+            />
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {[
+                "What is ecologically strong here?",
+                "What improvements matter most?",
+                "Which early steps add value?",
+                "How does this property compare nearby?",
+                "What should I preserve first?",
+                "What changed since last season?",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/5 px-4 py-4 text-sm text-zinc-200">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-lime-300" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(132,204,22,0.15),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-7">
+            <div className="grid gap-4 sm:grid-cols-2">
               {[
                 { title: "Ecology", items: ["Native plants", "Habitat signals", "Tree canopy", "Biodiversity"] },
                 { title: "Property potential", items: ["Improvement ideas", "Location insights", "Early value steps", "Site comparison"] },
                 { title: "Stewardship", items: ["Track observations", "Plan and improve", "Measure progress", "Seasonal memory"] },
                 { title: "Platform path", items: ["Phone capture", "Map context", "Field memory", "Digital twin"] },
               ].map((cat) => (
-                <div key={cat.title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                  <h3 className="text-sm font-bold text-white mb-3">{cat.title}</h3>
-                  <ul className="space-y-2">
+                <div key={cat.title} className="rounded-3xl border border-white/[0.08] bg-black/20 p-5">
+                  <div className="text-lg font-semibold text-white">{cat.title}</div>
+                  <div className="mt-4 space-y-3 text-sm text-zinc-300">
                     {cat.items.map((item) => (
-                      <li key={item} className="flex items-center gap-2 text-white/50 text-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#86efac]/60 flex-none" />
-                        {item}
-                      </li>
+                      <div key={item} className="flex items-center gap-3">
+                        <div className="h-2 w-2 rounded-full bg-lime-300" />
+                        <span>{item}</span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               ))}
             </div>
@@ -407,51 +551,42 @@ export default function EcoEntryPage() {
         </div>
       </section>
 
-      {/* ── Early Access CTA ──────────────────────────────────────────────── */}
-      <section id="early-access" className="bg-[#0f231a]">
-        <div className="max-w-7xl mx-auto px-6 py-20 sm:py-28">
-          <div className="rounded-3xl border border-white/10 bg-[radial-gradient(ellipse_at_top_left,_rgba(134,239,172,0.04)_0%,_transparent_50%)] p-10 sm:p-14">
-            <div className="grid lg:grid-cols-2 gap-12 items-start">
-              {/* Left: Copy */}
-              <div>
-                <div className="inline-flex items-center rounded-full bg-white/[0.06] border border-white/10 px-4 py-1.5 mb-6">
-                  <span className="text-xs font-semibold text-[#86efac] uppercase tracking-widest">Get Early Access</span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">
-                  Be among the first to scan your yard and see its ecological potential.
-                </h2>
-                <p className="text-white/40 text-sm leading-relaxed mt-4">
-                  This mockup pushes the page toward a stronger product story: less detached app screenshot,
-                  more living landscape intelligence.
-                </p>
+      {/* ── Section 8: Early Access ──────────────────────────────────────── */}
+      <section id="access" className="px-6 pb-24 lg:px-8">
+        <div className="mx-auto max-w-7xl rounded-[2.5rem] border border-lime-300/15 bg-[radial-gradient(circle_at_top,rgba(190,242,100,0.14),transparent_28%),linear-gradient(180deg,rgba(17,24,19,0.95),rgba(9,14,11,0.98))] px-8 py-14 shadow-2xl shadow-black/20 sm:px-12 lg:py-20">
+          <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div>
+              <div className="inline-flex rounded-full border border-lime-300/20 bg-lime-300/10 px-4 py-2 text-xs uppercase tracking-[0.22em] text-lime-100">
+                Get early access
               </div>
+              <h2 className="mt-6 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+                Be among the first to scan your yard and see its ecological potential.
+              </h2>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
+                YardScore is opening early access to homeowners, gardeners, arborists, nurseries, and anyone
+                who wants to understand and improve the living landscape around them.
+              </p>
+            </div>
 
-              {/* Right: Form */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-                <EarlyAccessForm variant="dark" />
-                <p className="text-white/30 text-xs mt-5 leading-relaxed">
-                  Early access for homeowners, gardeners, arborists, nurseries, and land-focused teams.
-                </p>
+            <div className="rounded-[2rem] border border-white/10 bg-black/20 p-6 backdrop-blur-sm">
+              <EarlyAccessForm variant="dark" />
+              <div className="mt-4 text-xs leading-6 text-zinc-500">
+                Early access for homeowners, gardeners, arborists, nurseries, and land-focused teams.
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Footer ────────────────────────────────────────────────────────── */}
-      <footer className="bg-[#091610] border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-10">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-white/60 font-semibold text-sm">
-              YardScore <span className="font-normal text-white/30">by DrewHenry</span>
-            </p>
-            <p className="text-white/30 text-sm">Observation &rarr; Intelligence</p>
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer className="border-t border-white/[0.08] px-6 py-8 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="font-medium text-zinc-300">YardScore</span> by DrewHenry
           </div>
-          <p className="text-white/15 text-xs text-center mt-6">
-            &copy; 2026 DrewHenry. All rights reserved.
-          </p>
+          <div>Observation → Intelligence</div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

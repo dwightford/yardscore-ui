@@ -51,17 +51,17 @@ export default function EarlyAccessForm({
   const isDark = variant === "dark";
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-md space-y-3">
+    <form onSubmit={handleSubmit} className="grid w-full gap-4">
       <input
         type="email"
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email address"
-        className={`w-full px-4 py-3.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#86efac] ${
+        className={`h-14 w-full rounded-2xl px-4 text-sm outline-none ${
           isDark
-            ? "bg-white/[0.06] border border-white/10 text-white placeholder-white/40"
-            : "bg-white border border-gray-300 text-gray-800 placeholder-gray-400"
+            ? "border border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
+            : "border border-gray-300 bg-white text-gray-800 placeholder:text-gray-400"
         }`}
       />
       <input
@@ -69,16 +69,16 @@ export default function EarlyAccessForm({
         value={propertyType}
         onChange={(e) => setPropertyType(e.target.value)}
         placeholder="What kind of property are you scanning?"
-        className={`w-full px-4 py-3.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#86efac] ${
+        className={`h-14 w-full rounded-2xl px-4 text-sm outline-none ${
           isDark
-            ? "bg-white/[0.06] border border-white/10 text-white placeholder-white/40"
-            : "bg-white border border-gray-300 text-gray-800 placeholder-gray-400"
+            ? "border border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
+            : "border border-gray-300 bg-white text-gray-800 placeholder:text-gray-400"
         }`}
       />
       <button
         type="submit"
         disabled={state === "submitting"}
-        className="w-full px-6 py-3.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-60 bg-[#86efac] text-[#0d1f17] hover:bg-[#a7f3d0]"
+        className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-lime-300 text-sm font-semibold text-zinc-950 transition hover:scale-[1.01] disabled:opacity-60"
       >
         {state === "submitting" ? "Joining..." : "Join the List"}
       </button>

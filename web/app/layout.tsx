@@ -28,9 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-screen bg-[#f8f4ef]">
-        {/* diagnostic: visible on every route — if this text appears, the layout rendered */}
-        <div id="ys-boot" style={{ fontSize: 10, textAlign: "center", color: "#ccc", letterSpacing: 1, padding: "2px 0" }}>ys:layout</div>
+      <body className="min-h-screen bg-[#07110c]">
         {children}
         <FeedbackWidget />
       </body>
