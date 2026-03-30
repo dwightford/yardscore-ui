@@ -1,69 +1,71 @@
 import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
-import Resend from "next-auth/providers/resend";
-import PostgresAdapter from "@auth/pg-adapter";
-import { Pool } from "pg";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL ?? "postgresql://yardscore:yardscore@localhost:5432/yardscore",
-});
+import Credentials from "next-auth/providers/credentials";
 
 export const authConfig: NextAuthConfig = {
-  adapter: PostgresAdapter(pool),
   providers: [
-    Resend({
-      apiKey: process.env.RESEND_API_KEY,
-      from: "YardScore <noreply@drewhenry.com>",
+    Credentials({
+      id: "magic-link",
+      name: "Email",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials) {
+        const email = credentials?.email as string;
+        const token = credentials?.token as string;
+        if (!email || !token) return null;
+
+        // Verify the magic link token via API
+        try {
+          const r = await fetch("http://localhost:8000/auth/verify-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, token }),
+          });
+          if (r.ok) {
+            const data = await r.json();
+            if (data.valid) {
+              return { id: data.user_id, email, name: data.display_name };
+            }
+          }
+        } catch {}
+        return null;
+      },
     }),
   ],
   pages: {
     signIn: "/login",
-    verifyRequest: "/login/check-email",
     error: "/login/error",
   },
   callbacks: {
-    async signIn({ user }) {
-      if (!user.email) return false;
-
-      try {
-        const r = await fetch(
-          `${API.startsWith("/") ? "http://localhost:8000" : API}/auth/check-allowlist`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: user.email }),
-          }
-        );
-        if (r.ok) {
-          const data = await r.json();
-          return data.allowed === true;
-        }
-      } catch {
-        // If API is down, deny
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
       }
-      return false;
+      return token;
     },
-    async session({ session }) {
-      if (session.user?.email) {
-        try {
-          const r = await fetch(
-            `${API.startsWith("/") ? "http://localhost:8000" : API}/auth/profile?email=${encodeURIComponent(session.user.email)}`
-          );
-          if (r.ok) {
-            const profile = await r.json();
-            (session.user as any).id = profile.id;
-            (session.user as any).role = profile.role;
-            (session.user as any).displayName = profile.display_name;
-          }
-        } catch {
-          // Profile fetch failed
-        }
+    async session({ session, token }) {
+      if (token?.email) {
+        (session.user as any).id = token.id;
+        (session.user as any).email = token.email;
+        (session.user as any).name = token.name;
       }
       return session;
     },
+    authorized({ auth, request: { nextUrl } }) {
+      const isLoggedIn = !!auth?.user;
+      const isProtected = ["/dashboard", "/scan", "/capture", "/map", "/identify", "/debug"].some(
+        (r) => nextUrl.pathname === r || nextUrl.pathname.startsWith(r + "/")
+      );
+
+      if (isProtected && !isLoggedIn) return false;
+      return true;
+    },
   },
+  session: { strategy: "jwt" },
   secret: process.env.AUTH_SECRET,
   trustHost: true,
 };
