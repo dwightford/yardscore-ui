@@ -169,6 +169,29 @@ export default function ScanPage() {
   // ── Camera control ──────────────────────────────────────────────────────────
 
   async function startCamera(): Promise<boolean> {
+    // Check if camera API is available
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setState((s) => ({
+        ...s, status: "error",
+        error: "Camera not available. Make sure you're using HTTPS and a supported browser.",
+      }));
+      return false;
+    }
+
+    // Check permission state if available
+    try {
+      const permResult = await navigator.permissions?.query({ name: "camera" as PermissionName });
+      if (permResult?.state === "denied") {
+        setState((s) => ({
+          ...s, status: "error",
+          error: "Camera permission was denied. On iPhone: Settings → Safari → Camera → Allow. Then reload this page.",
+        }));
+        return false;
+      }
+    } catch {
+      // permissions API not available on all browsers — proceed to getUserMedia
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -180,7 +203,17 @@ export default function ScanPage() {
         await videoRef.current.play();
       }
       return true;
-    } catch {
+    } catch (err: unknown) {
+      const name = err instanceof DOMException ? err.name : "";
+      let msg = "Camera access denied.";
+      if (name === "NotAllowedError") {
+        msg = "Camera permission denied. On iPhone: tap the AA in the URL bar → Website Settings → Camera → Allow. Then reload.";
+      } else if (name === "NotFoundError") {
+        msg = "No camera found on this device.";
+      } else if (name === "NotReadableError") {
+        msg = "Camera is in use by another app. Close other camera apps and try again.";
+      }
+      setState((s) => ({ ...s, status: "error", error: msg }));
       return false;
     }
   }
