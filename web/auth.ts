@@ -2,6 +2,9 @@ import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
+// Server-side API URL: inside Docker use service name, outside use localhost
+const API_INTERNAL = process.env.API_INTERNAL_URL ?? "http://api:8000";
+
 export const authConfig: NextAuthConfig = {
   providers: [
     Credentials({
@@ -18,7 +21,7 @@ export const authConfig: NextAuthConfig = {
 
         // Verify the magic link token via API
         try {
-          const r = await fetch("http://localhost:8000/auth/verify-token", {
+          const r = await fetch(`${API_INTERNAL}/auth/verify-token`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, token }),
