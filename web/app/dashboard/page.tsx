@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import NavBar from "../components/NavBar";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -23,272 +22,176 @@ interface LatestScore {
   computed_at: string;
 }
 
-interface PlaceWithScore {
+interface SessionSummary {
+  id: string;
+  status: string;
+  capture_mode: string;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+interface PlaceWithData {
   place: LandUnit;
   score: LatestScore | null;
-  entityCount?: number;
-  hasParcel?: boolean;
+  entityCount: number;
+  hasParcel: boolean;
+  sessions: SessionSummary[];
+  loading: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function scoreColor(score: number): string {
-  if (score >= 70) return "text-green-700";
-  if (score >= 45) return "text-yellow-600";
-  return "text-red-600";
+function scoreColor(v: number): string {
+  if (v >= 70) return "text-lime-300";
+  if (v >= 45) return "text-yellow-400";
+  return "text-red-400";
+}
+
+function scoreBgRing(v: number): string {
+  if (v >= 70) return "border-lime-400/50 bg-lime-400/10";
+  if (v >= 45) return "border-yellow-400/50 bg-yellow-400/10";
+  return "border-red-400/50 bg-red-400/10";
+}
+
+function scoreLabel(v: number): string {
+  if (v >= 80) return "Excellent";
+  if (v >= 60) return "Good";
+  if (v >= 40) return "Fair";
+  return "Needs Work";
 }
 
 function typeLabel(t: string): string {
-  const map: Record<string, string> = {
-    yard: "Yard",
-    parcel: "Parcel",
-    property: "Property",
-    cluster: "Community cluster",
-  };
-  return map[t] ?? t;
+  return { yard: "Yard", parcel: "Parcel", property: "Property", cluster: "Community" }[t] ?? t;
+}
+
+function timeAgo(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
 }
 
 // ── Score badge ───────────────────────────────────────────────────────────────
 
-function ScoreBadge({ score }: { score: LatestScore | null | "loading" }) {
+function ScoreBadge({ score, size = "md" }: { score: LatestScore | null | "loading"; size?: "sm" | "md" | "lg" }) {
+  const dims = size === "lg" ? "w-20 h-20" : size === "md" ? "w-14 h-14" : "w-10 h-10";
+  const textSize = size === "lg" ? "text-2xl" : size === "md" ? "text-lg" : "text-sm";
+
   if (score === "loading") {
-    return (
-      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center animate-pulse">
-        <span className="text-xs text-gray-400">...</span>
-      </div>
-    );
+    return <div className={`${dims} rounded-full bg-white/5 border border-white/10 animate-pulse`} />;
   }
   if (!score) {
     return (
-      <div className="w-12 h-12 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
-        <span className="text-xs text-gray-400">&mdash;</span>
+      <div className={`${dims} rounded-full bg-white/5 border border-white/10 flex items-center justify-center`}>
+        <span className="text-xs text-zinc-500">&mdash;</span>
       </div>
     );
   }
-  const si = Math.round(score.score_value);
-  const ringClass =
-    si >= 70 ? "border-green-400" : si >= 45 ? "border-yellow-400" : "border-red-400";
-  const textClass = scoreColor(si);
+  const v = Math.round(score.score_value);
   return (
-    <div
-      className={`w-12 h-12 rounded-full border-2 ${ringClass} flex items-center justify-center`}
-    >
-      <span className={`text-sm font-black tabular-nums ${textClass}`}>{si}</span>
+    <div className={`${dims} rounded-full border-2 ${scoreBgRing(v)} flex items-center justify-center`}>
+      <span className={`${textSize} font-bold tabular-nums ${scoreColor(v)}`}>{v}</span>
     </div>
   );
 }
 
-// ── Place card ────────────────────────────────────────────────────────────────
+// ── Property card ─────────────────────────────────────────────────────────────
 
-function PlaceCard({
-  item,
-  onDelete,
-}: {
-  item: PlaceWithScore & { scoreLoading: boolean };
-  onDelete: (id: string) => void;
-}) {
-  const { place, score, scoreLoading } = item;
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  async function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-      return;
-    }
-    setDeleting(true);
-    try {
-      await fetch(`${API}/land_units/${place.id}`, { method: "DELETE" });
-      onDelete(place.id);
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  const obsCount = place.observation_count ?? 0;
-  const entityCount = (item as any).entityCount ?? 0;
-  const hasParcel = (item as any).hasParcel ?? false;
+function PropertyCard({ item }: { item: PlaceWithData }) {
+  const { place, score, entityCount, hasParcel, sessions, loading } = item;
+  const [expanded, setExpanded] = useState(false);
+  const v = score ? Math.round(score.score_value) : null;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-[#52b788] hover:shadow-sm transition-all">
-      <div className="flex items-center gap-3 px-4 py-3">
-        <ScoreBadge score={scoreLoading ? "loading" : score} />
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-white/20 transition-colors">
+      {/* Main row */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-4 px-5 py-4 text-left"
+      >
+        <ScoreBadge score={loading ? "loading" : score} />
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-800 truncate">{place.name}</p>
+          <p className="font-semibold text-white truncate">{place.name}</p>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-gray-400">{typeLabel(place.land_unit_type)}</span>
+            <span className="text-xs text-zinc-500">{typeLabel(place.land_unit_type)}</span>
             {place.address && (
-              <span className="text-xs text-gray-400 truncate max-w-[200px]">&middot; {place.address.split(",").slice(0, 2).join(",")}</span>
+              <span className="text-xs text-zinc-500 truncate max-w-[250px]">· {place.address.split(",").slice(0, 2).join(",")}</span>
             )}
           </div>
+          {v !== null && (
+            <p className={`text-xs mt-1 ${scoreColor(v)}`}>{scoreLabel(v)}</p>
+          )}
         </div>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          title={confirmDelete ? "Tap again to confirm" : "Delete"}
-          className={`flex-none w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-colors border ${
-            confirmDelete
-              ? "bg-red-50 border-red-300 text-red-600"
-              : "bg-white border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500"
-          } disabled:opacity-50`}
-        >
-          {deleting ? "..." : confirmDelete ? "OK" : "x"}
-        </button>
-      </div>
-
-      {/* Stats row */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-t border-gray-100 text-xs">
-        <span className={obsCount > 0 ? "text-[#2d6a4f] font-medium" : "text-gray-400"}>
-          {obsCount} photo{obsCount !== 1 ? "s" : ""}
-        </span>
-        {entityCount > 0 && (
-          <span className="text-[#2d6a4f] font-medium">
-            {entityCount} tagged
-          </span>
-        )}
-        {hasParcel && (
-          <span className="text-emerald-600 font-medium">
-            Parcel linked
-          </span>
-        )}
-        <div className="flex-1" />
-        <a href={`/map`} className="text-[#2d6a4f] font-medium hover:underline">
-          Map
-        </a>
-        <a href={`/capture?place=${place.id}`} className="text-[#52b788] font-medium hover:underline">
-          Upload
-        </a>
-      </div>
-    </div>
-  );
-
-}
-
-// ── Places list ───────────────────────────────────────────────────────────────
-
-function PlacesList({ onNewPlace }: { onNewPlace: () => void }) {
-  const [items, setItems] = useState<(PlaceWithScore & { scoreLoading: boolean })[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const loadPlaces = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${API}/land_units`);
-      if (!res.ok) throw new Error(await res.text());
-      const places: LandUnit[] = await res.json();
-
-      const initial = places.map((p) => ({ place: p, score: null, scoreLoading: true }));
-      setItems(initial);
-      setLoading(false);
-
-      const scored = await Promise.all(
-        places.map(async (p) => {
-          try {
-            const [sr, er, pr] = await Promise.all([
-              fetch(`${API}/yardscore/${p.id}/latest`),
-              fetch(`${API}/entities?land_unit_id=${p.id}`),
-              fetch(`${API}/parcels?land_unit_id=${p.id}`),
-            ]);
-            const score: LatestScore | null = sr.ok ? await sr.json() : null;
-            const entities = er.ok ? await er.json() : [];
-            const parcels = pr.ok ? await pr.json() : [];
-            return {
-              place: p,
-              score,
-              scoreLoading: false,
-              entityCount: entities.length,
-              hasParcel: parcels.length > 0,
-            };
-          } catch {
-            return { place: p, score: null, scoreLoading: false, entityCount: 0, hasParcel: false };
-          }
-        })
-      );
-      setItems(scored);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load places.");
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadPlaces();
-  }, [loadPlaces]);
-
-  function handleDelete(id: string) {
-    setItems((prev) => prev.filter((item) => item.place.id !== id));
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">Your places</h2>
-        <div className="flex items-center gap-2">
-          <a
-            href="/capture"
-            className="text-sm bg-[#52b788] hover:bg-[#40916c] text-white font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            Upload Photos
-          </a>
-          <button
-            onClick={onNewPlace}
-            className="text-sm bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            + New place
-          </button>
+        <div className="flex items-center gap-3 flex-none">
+          <div className="text-right">
+            <p className="text-xs text-zinc-400">{entityCount} plants</p>
+            <p className="text-xs text-zinc-500">{sessions.length} scans</p>
+          </div>
+          <svg className={`w-4 h-4 text-zinc-500 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
-      </div>
+      </button>
 
-      {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {/* Expanded: scan history + actions */}
+      {expanded && (
+        <div className="border-t border-white/5 px-5 py-4 space-y-4">
+          {/* Quick actions */}
+          <div className="flex gap-2">
+            <a href="/scan" className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">
+              Scan
+            </a>
+            <a href="/map" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">
+              Map
+            </a>
+            <a href={`/capture?place=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">
+              Upload
+            </a>
+            <a href={`/identify`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">
+              Identify
+            </a>
+          </div>
 
-      {loading ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-3">&#127807;</div>
-          <p className="font-semibold text-gray-700 mb-1">No places yet</p>
-          <p className="text-sm text-gray-400 mb-4">
-            Create your first place and upload a photo to get your YardScore.
-          </p>
-          <button
-            onClick={onNewPlace}
-            className="bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-semibold px-5 py-2.5 rounded-lg transition-colors text-sm"
-          >
-            Create your first place
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <PlaceCard key={item.place.id} item={item} onDelete={handleDelete} />
-          ))}
+          {/* Scan history */}
+          {sessions.length > 0 ? (
+            <div>
+              <p className="text-xs text-zinc-500 mb-2">Recent scans</p>
+              <div className="space-y-1.5">
+                {sessions.slice(0, 5).map((s) => (
+                  <div key={s.id} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${s.status === "closed" ? "bg-lime-400" : s.status === "open" ? "bg-yellow-400" : "bg-zinc-500"}`} />
+                      <span className="text-xs text-zinc-300">{s.capture_mode || "scan"}</span>
+                    </div>
+                    <span className="text-xs text-zinc-500">{timeAgo(s.created_at)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-500 text-center py-2">No scans yet — go outside and scan this property.</p>
+          )}
+
+          {/* Meta */}
+          <div className="flex items-center justify-between text-[10px] text-zinc-600">
+            <span>{hasParcel ? "✓ Parcel linked" : "No parcel"}</span>
+            <span>Added {timeAgo(place.created_at)}</span>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ── New place modal ───────────────────────────────────────────────────────────
+// ── New property form ─────────────────────────────────────────────────────────
 
-function NewPlaceForm({
-  onCreated,
-  onCancel,
-}: {
-  onCreated: () => void;
-  onCancel: () => void;
-}) {
+function NewPropertyForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [type, setType] = useState("yard");
   const [address, setAddress] = useState("");
@@ -304,83 +207,50 @@ function NewPlaceForm({
       const res = await fetch(`${API}/land_units`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          land_unit_type: type,
-          address: address.trim() || null,
-        }),
+        body: JSON.stringify({ name: name.trim(), land_unit_type: type, address: address.trim() || null }),
       });
       if (!res.ok) throw new Error(await res.text());
       onCreated();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create place.");
+      setError(err instanceof Error ? err.message : "Failed to create.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-800">New place</h3>
-        <button
-          onClick={onCancel}
-          className="text-gray-400 hover:text-gray-600 text-sm"
-        >
-          Cancel
-        </button>
+        <h3 className="font-semibold text-white">New property</h3>
+        <button onClick={onCancel} className="text-zinc-500 hover:text-zinc-300 text-sm">Cancel</button>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Front yard, Community Plot A"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]"
-            autoFocus
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]"
-          >
-            <option value="yard">Yard</option>
-            <option value="parcel">Parcel</option>
-            <option value="property">Property</option>
-            <option value="cluster">Community cluster</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Address <span className="text-gray-400">(optional)</span>
-          </label>
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="123 Main St, Durham NC"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]"
-          />
-        </div>
-        {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-        <button
-          type="submit"
-          disabled={loading || !name.trim()}
-          className="w-full bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
+        <input
+          type="text" value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Front yard, Backyard, Client property"
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-300/50"
+          autoFocus required
+        />
+        <select
+          value={type} onChange={(e) => setType(e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-lime-300/50"
         >
-          {loading ? "Creating..." : "Create place"}
+          <option value="yard">Yard</option>
+          <option value="parcel">Parcel</option>
+          <option value="property">Property</option>
+          <option value="cluster">Community</option>
+        </select>
+        <input
+          type="text" value={address} onChange={(e) => setAddress(e.target.value)}
+          placeholder="Address (optional)"
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-300/50"
+        />
+        {error && <p className="text-red-400 text-xs">{error}</p>}
+        <button
+          type="submit" disabled={loading || !name.trim()}
+          className="w-full py-2.5 bg-lime-300 text-zinc-950 font-semibold rounded-lg text-sm hover:bg-lime-200 transition-colors disabled:opacity-50"
+        >
+          {loading ? "Creating..." : "Create property"}
         </button>
       </form>
     </div>
@@ -390,70 +260,164 @@ function NewPlaceForm({
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const [places, setPlaces] = useState<PlaceWithData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showNewPlace, setShowNewPlace] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  function handlePlaceCreated() {
-    setShowNewPlace(false);
-    setRefreshKey((k) => k + 1);
-  }
+  const loadPlaces = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/land_units`);
+      if (!res.ok) throw new Error();
+      const units: LandUnit[] = await res.json();
+
+      // Show immediately with loading state
+      setPlaces(units.map((p) => ({
+        place: p, score: null, entityCount: 0, hasParcel: false, sessions: [], loading: true,
+      })));
+      setLoading(false);
+
+      // Hydrate with scores, entities, sessions in parallel
+      const hydrated = await Promise.all(
+        units.map(async (p) => {
+          try {
+            const [sr, er, pr, sesr] = await Promise.all([
+              fetch(`${API}/yardscore/${p.id}/latest`),
+              fetch(`${API}/entities?land_unit_id=${p.id}`),
+              fetch(`${API}/parcels?land_unit_id=${p.id}`),
+              fetch(`${API}/observation_sessions?land_unit_id=${p.id}`),
+            ]);
+            return {
+              place: p,
+              score: sr.ok ? await sr.json() : null,
+              entityCount: er.ok ? (await er.json()).length : 0,
+              hasParcel: pr.ok ? (await pr.json()).length > 0 : false,
+              sessions: sesr.ok ? await sesr.json() : [],
+              loading: false,
+            };
+          } catch {
+            return { place: p, score: null, entityCount: 0, hasParcel: false, sessions: [], loading: false };
+          }
+        })
+      );
+      setPlaces(hydrated);
+    } catch {
+      setLoading(false);
+    }
+  }, [refreshKey]);
+
+  useEffect(() => { loadPlaces(); }, [loadPlaces]);
+
+  // Stats across all properties
+  const totalPlants = places.reduce((sum, p) => sum + p.entityCount, 0);
+  const totalScans = places.reduce((sum, p) => sum + p.sessions.length, 0);
+  const avgScore = places.filter(p => p.score).length > 0
+    ? Math.round(places.filter(p => p.score).reduce((sum, p) => sum + (p.score?.score_value ?? 0), 0) / places.filter(p => p.score).length)
+    : null;
 
   return (
-    <div className="min-h-screen bg-[#f8f4ef]">
-      <NavBar active="/dashboard" />
-
-      {/* ── Hero / welcome section ──────────────────────────────────────────── */}
-      <div className="bg-gradient-to-b from-[#2d6a4f] to-[#1b4332]">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-            Welcome to YardScore
-          </h1>
-          <p className="mt-3 text-base sm:text-lg text-[#b7e4c7] max-w-lg mx-auto">
-            Upload photos of your yard to get your ecological score
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href="/scan"
-              className="inline-flex items-center gap-2 bg-white text-[#2d6a4f] font-semibold px-6 py-3 rounded-xl hover:bg-[#d8f3dc] transition-colors text-sm shadow-sm"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+    <div className="min-h-screen bg-[#07110c]">
+      {/* Nav */}
+      <nav className="border-b border-white/5 bg-[#07110c]">
+        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+          <a href="/dashboard" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
               </svg>
-              Start Scan
-            </a>
-            <a
-              href="/capture"
-              className="inline-flex items-center gap-2 bg-transparent border border-white/30 text-white font-medium px-6 py-3 rounded-xl hover:bg-white/10 transition-colors text-sm"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Upload Photos
-            </a>
+            </div>
+            <span className="text-sm font-semibold text-white">YardScore</span>
+          </a>
+          <div className="flex items-center gap-6 text-xs text-zinc-400">
+            <a href="/dashboard" className="text-lime-300 font-medium">Dashboard</a>
+            <a href="/map" className="hover:text-white transition-colors">Map</a>
+            <a href="/scan" className="hover:text-white transition-colors">Scan →</a>
           </div>
         </div>
-      </div>
+      </nav>
 
-      {/* ── Main content ────────────────────────────────────────────────────── */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {showNewPlace ? (
-          <div className="max-w-md mx-auto">
-            <NewPlaceForm
-              onCreated={handlePlaceCreated}
+      <div className="max-w-5xl mx-auto px-5 py-8">
+        {/* Stats bar */}
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-zinc-500">Properties</p>
+            <p className="text-2xl font-bold text-white">{places.length}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-zinc-500">Total Scans</p>
+            <p className="text-2xl font-bold text-white">{totalScans}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-zinc-500">Plants Found</p>
+            <p className="text-2xl font-bold text-white">{totalPlants}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-zinc-500">Avg Score</p>
+            <p className={`text-2xl font-bold ${avgScore ? scoreColor(avgScore) : "text-zinc-500"}`}>
+              {avgScore ?? "—"}
+            </p>
+          </div>
+        </div>
+
+        {/* Header + CTA */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-white">Your Properties</h1>
+          <div className="flex items-center gap-2">
+            <a href="/scan" className="px-4 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg hover:bg-lime-200 transition-colors">
+              Start Scan
+            </a>
+            <button
+              onClick={() => setShowNewPlace(true)}
+              className="px-4 py-2 bg-white/10 text-white text-xs font-medium rounded-lg hover:bg-white/20 transition-colors"
+            >
+              + Add Property
+            </button>
+          </div>
+        </div>
+
+        {/* New property form */}
+        {showNewPlace && (
+          <div className="mb-6 max-w-md">
+            <NewPropertyForm
+              onCreated={() => { setShowNewPlace(false); setRefreshKey((k) => k + 1); }}
               onCancel={() => setShowNewPlace(false)}
             />
           </div>
+        )}
+
+        {/* Property list */}
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-20 rounded-2xl bg-white/[0.03] border border-white/5 animate-pulse" />
+            ))}
+          </div>
+        ) : places.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl border border-white/10 bg-white/[0.02]">
+            <div className="w-16 h-16 rounded-2xl bg-lime-300/10 border border-lime-300/20 flex items-center justify-center mx-auto mb-4">
+              <svg viewBox="0 0 24 24" className="w-8 h-8 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-white mb-1">No properties yet</h2>
+            <p className="text-sm text-zinc-400 mb-6">Start a scan to create your first property automatically from GPS.</p>
+            <a href="/scan" className="inline-flex px-6 py-3 bg-lime-300 text-zinc-950 font-semibold rounded-xl text-sm hover:bg-lime-200 transition-colors">
+              Start Your First Scan
+            </a>
+          </div>
         ) : (
-          <div key={refreshKey} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <PlacesList onNewPlace={() => setShowNewPlace(true)} />
+          <div className="space-y-3">
+            {places.map((item) => (
+              <PropertyCard key={item.place.id} item={item} />
+            ))}
           </div>
         )}
       </div>
 
-      {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <footer className="text-center text-xs text-gray-400 pb-8">
-        YardScore v1.0
+      {/* Footer */}
+      <footer className="text-center text-[10px] text-zinc-600 py-8">
+        YardScore by DrewHenry · Observation → Intelligence
       </footer>
     </div>
   );
