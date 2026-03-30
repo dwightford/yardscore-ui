@@ -23,10 +23,13 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 interface Observation {
   id: string;
   category: string;
+  count: number;
+  layer: string | null;
   label: string;
   species: string | null;
   confidence: number;
   size: string | null;
+  native_status: string | null;
   notes: string | null;
   timestamp: number;
   lat: number | null;
@@ -56,14 +59,31 @@ interface ScanState {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function computeScore(counts: LiveCounts, obs: Observation[]): number {
-  let score = 30; // base
-  score += Math.min(counts.trees * 5, 30);
-  score += Math.min(counts.shrubs * 4, 15);
-  score += Math.min(counts.herbs * 3, 10);
-  score += counts.ground_cover > 0 ? 5 : 0;
-  // Diversity bonus
+  let score = 20; // base
+
+  // Layer presence (up to 25 points)
+  const layers = new Set(obs.map(o => o.layer).filter(Boolean));
+  score += Math.min(layers.size * 5, 25);
+
+  // Canopy trees (up to 20 points)
+  score += Math.min(counts.trees * 3, 20);
+
+  // Shrub layer (up to 10 points)
+  score += Math.min(counts.shrubs * 3, 10);
+
+  // Herb + ground cover (up to 10 points)
+  score += Math.min((counts.herbs + counts.ground_cover) * 3, 10);
+
+  // Native bonus / invasive penalty (up to ±15 points)
+  for (const o of obs) {
+    if (o.native_status === "native") score += 2 * o.count;
+    else if (o.native_status === "invasive") score -= 3 * o.count;
+  }
+
+  // Species diversity bonus (up to 10 points)
   const species = new Set(obs.filter(o => o.species).map(o => o.species));
   score += Math.min(species.size * 2, 10);
+
   return Math.max(0, Math.min(100, score));
 }
 
@@ -356,10 +376,13 @@ export default function ScanPage() {
           const newObs: Observation[] = data.observations.map((obs: any) => ({
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             category: obs.category,
+            count: obs.count || 1,
+            layer: obs.layer || null,
             label: obs.label,
             species: obs.species,
             confidence: obs.confidence,
             size: obs.size,
+            native_status: obs.native_status || null,
             notes: obs.notes,
             timestamp: Date.now(),
             lat: coords?.lat ?? null,
@@ -368,24 +391,33 @@ export default function ScanPage() {
 
           setObservations((prev) => [...prev, ...newObs]);
 
-          // Update counts
+          // Update counts using count field from model
           setState((prev) => {
             const counts = { ...prev.liveCounts };
             for (const obs of newObs) {
-              if (obs.category === "tree") counts.trees++;
-              else if (obs.category === "shrub") counts.shrubs++;
-              else if (obs.category === "herb") counts.herbs++;
-              else if (obs.category === "ground_cover") counts.ground_cover++;
+              const n = obs.count;
+              if (obs.category === "tree") counts.trees += n;
+              else if (obs.category === "shrub") counts.shrubs += n;
+              else if (obs.category === "herb") counts.herbs += n;
+              else if (obs.category === "ground_cover") counts.ground_cover += n;
             }
             return { ...prev, liveCounts: counts };
           });
 
-          // Show latest label with details
+          // Show latest label with count, size, and native status
           const best = newObs.reduce((a, b) => a.confidence > b.confidence ? a : b);
-          const labelParts = [best.label];
-          if (best.size) labelParts.push(`· ${best.size}`);
-          if (best.species) labelParts.push(`\n${best.species}`);
-          setLatestLabel(labelParts.join(" "));
+          const parts: string[] = [];
+          if (best.count > 1) parts.push(`${best.count}×`);
+          parts.push(best.label);
+          if (best.size) parts.push(`· ${best.size}`);
+          const line2: string[] = [];
+          if (best.native_status && best.native_status !== "unknown") {
+            const emoji = best.native_status === "native" ? "✓" : best.native_status === "invasive" ? "⚠" : "○";
+            line2.push(`${emoji} ${best.native_status}`);
+          }
+          if (best.species) line2.push(best.species);
+          if (line2.length > 0) parts.push(`\n${line2.join(" · ")}`);
+          setLatestLabel(parts.join(" "));
           setTimeout(() => setLatestLabel(null), 5000);
         }
       }
