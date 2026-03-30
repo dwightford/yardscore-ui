@@ -1,13 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+/** Collect device/browser context automatically so users never need to debug */
+function collectContext(): Record<string, unknown> {
+  const ctx: Record<string, unknown> = {
+    page: window.location.pathname + window.location.search,
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    timestamp: new Date().toISOString(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    language: navigator.language,
+    online: navigator.onLine,
+    screenWidth: window.screen.width,
+    screenHeight: window.screen.height,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+    platform: (navigator as any).userAgentData?.platform ?? navigator.platform,
+    touchSupport: "ontouchstart" in window,
+  };
+
+  // Connection info
+  const conn = (navigator as any).connection;
+  if (conn) {
+    ctx.connectionType = conn.effectiveType;
+    ctx.connectionDownlink = conn.downlink;
+    ctx.connectionRtt = conn.rtt;
+  }
+
+  // Memory info (Chrome only)
+  const mem = (performance as any).memory;
+  if (mem) {
+    ctx.memoryUsedMB = Math.round(mem.usedJSHeapSize / 1024 / 1024);
+    ctx.memoryTotalMB = Math.round(mem.totalJSHeapSize / 1024 / 1024);
+  }
+
+  // Performance timing
+  const perf = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  if (perf) {
+    ctx.pageLoadMs = Math.round(perf.loadEventEnd - perf.startTime);
+  }
+
+  return ctx;
+}
+
+/** Capture recent console errors */
+function useErrorCapture(): string[] {
+  const errorsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const handler = (event: ErrorEvent) => {
+      const msg = `${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
+      errorsRef.current = [...errorsRef.current.slice(-9), msg];
+    };
+    const rejectionHandler = (event: PromiseRejectionEvent) => {
+      const msg = `Unhandled rejection: ${event.reason}`;
+      errorsRef.current = [...errorsRef.current.slice(-9), msg];
+    };
+
+    window.addEventListener("error", handler);
+    window.addEventListener("unhandledrejection", rejectionHandler);
+    return () => {
+      window.removeEventListener("error", handler);
+      window.removeEventListener("unhandledrejection", rejectionHandler);
+    };
+  }, []);
+
+  return errorsRef.current;
+}
 
 export default function FeedbackWidget() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [feedbackType, setFeedbackType] = useState<"general" | "bug" | "idea">("general");
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const recentErrors = useErrorCapture();
+
+  // Grab GPS when widget opens (non-blocking)
+  useEffect(() => {
+    if (open && !gpsCoords && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    }
+  }, [open, gpsCoords]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -15,18 +97,26 @@ export default function FeedbackWidget() {
 
     setStatus("sending");
     try {
+      const context = collectContext();
       const r = await fetch(`${API}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: message.trim(),
+          type: feedbackType,
           page: window.location.pathname,
           userAgent: navigator.userAgent,
+          context: {
+            ...context,
+            gps: gpsCoords,
+            recentErrors: recentErrors.length > 0 ? recentErrors : undefined,
+          },
         }),
       });
       if (r.ok) {
         setStatus("sent");
         setMessage("");
+        setFeedbackType("general");
         setTimeout(() => {
           setStatus("idle");
           setOpen(false);
@@ -41,7 +131,7 @@ export default function FeedbackWidget() {
 
   return (
     <>
-      {/* Floating feedback button — bottom right, always visible */}
+      {/* Floating feedback button */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
@@ -73,18 +163,61 @@ export default function FeedbackWidget() {
             {status === "sent" ? (
               <div className="text-center py-4">
                 <p className="text-[#2d6a4f] font-semibold">Thanks!</p>
-                <p className="text-gray-500 text-sm mt-1">Drew will see your feedback.</p>
+                <p className="text-gray-500 text-sm mt-1">Drew will see your feedback with full context.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-3">
+                {/* Feedback type selector */}
+                <div className="flex gap-2">
+                  {([
+                    { key: "general", label: "General", icon: "💬" },
+                    { key: "bug", label: "Bug", icon: "🐛" },
+                    { key: "idea", label: "Idea", icon: "💡" },
+                  ] as const).map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setFeedbackType(t.key)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        feedbackType === t.key
+                          ? "bg-[#2d6a4f] text-white"
+                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      }`}
+                    >
+                      {t.icon} {t.label}
+                    </button>
+                  ))}
+                </div>
+
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="What's working? What's not? What do you wish it did?"
+                  placeholder={
+                    feedbackType === "bug"
+                      ? "What went wrong? We'll capture device info automatically."
+                      : feedbackType === "idea"
+                      ? "What should YardScore do?"
+                      : "What's working? What's not?"
+                  }
                   rows={4}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-[#52b788] focus:ring-1 focus:ring-[#52b788]"
                   autoFocus
                 />
+
+                {/* Auto-captured context preview */}
+                <div className="bg-gray-50 rounded-lg px-3 py-2 text-[10px] text-gray-400 space-y-0.5">
+                  <p className="font-medium text-gray-500">Auto-captured:</p>
+                  <p>📍 Page: {typeof window !== "undefined" ? window.location.pathname : ""}</p>
+                  <p>📱 {typeof window !== "undefined" ? (
+                    /iPhone|iPad/.test(navigator.userAgent) ? "iOS" :
+                    /Android/.test(navigator.userAgent) ? "Android" : "Desktop"
+                  ) : ""} · {typeof window !== "undefined" ? `${window.innerWidth}×${window.innerHeight}` : ""}</p>
+                  {gpsCoords && <p>🛰 GPS: {gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)}</p>}
+                  {recentErrors.length > 0 && (
+                    <p className="text-red-400">⚠ {recentErrors.length} recent error{recentErrors.length > 1 ? "s" : ""} captured</p>
+                  )}
+                </div>
+
                 {status === "error" && (
                   <p className="text-red-500 text-xs">Failed to send. Try again.</p>
                 )}
@@ -95,9 +228,6 @@ export default function FeedbackWidget() {
                 >
                   {status === "sending" ? "Sending..." : "Send Feedback"}
                 </button>
-                <p className="text-gray-400 text-[10px] text-center">
-                  Includes your current page and device info
-                </p>
               </form>
             )}
           </div>
