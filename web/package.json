@@ -9,11 +9,13 @@
     "start": "next start --port 3000"
   },
   "dependencies": {
+    "@auth/core": "^0.41.0",
     "@types/leaflet": "^1.9.21",
     "framer-motion": "^12.38.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.7.0",
     "next": "14.2.3",
+    "next-auth": "^5.0.0-beta.30",
     "react": "^18",
     "react-dom": "^18",
     "react-leaflet": "^4.2.1"
