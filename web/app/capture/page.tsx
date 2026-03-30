@@ -24,6 +24,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 import NavBar from "../components/NavBar";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -65,12 +67,12 @@ function scoreBg(v: number): string {
 
 // Poll /yardscore/.../latest until a score run is available or timeout.
 // Polls the persisted latest score — does NOT re-trigger scoring.
-async function pollScore(landUnitId: string, signal: AbortSignal): Promise<ScoreResult | null> {
+async function pollScore(token: string | undefined, landUnitId: string, signal: AbortSignal): Promise<ScoreResult | null> {
   const start = Date.now();
   while (Date.now() - start < 15_000) {
     if (signal.aborted) return null;
     try {
-      const r = await fetch(`${API}/yardscore/${landUnitId}/latest`, { signal });
+      const r = await apiFetch(token, `${API}/yardscore/${landUnitId}/latest`, { signal });
       if (r.ok) {
         const body = await r.json();
         if (body.score_value !== undefined) return body as ScoreResult;
@@ -87,6 +89,10 @@ async function pollScore(landUnitId: string, signal: AbortSignal): Promise<Score
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function CapturePage() {
+  const { data: session } = useSession();
+  const tokenRef = useRef<string | undefined>(undefined);
+  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -105,7 +111,8 @@ export default function CapturePage() {
 
   useEffect(() => {
     // Fetch places
-    fetch(`${API}/land_units`)
+    if (!tokenRef.current) return;
+    apiFetch(tokenRef.current, `${API}/land_units`)
       .then((r) => r.json())
       .then((data: Place[]) => {
         setPlaces(data);
@@ -154,7 +161,7 @@ export default function CapturePage() {
       }
     }
 
-    const r = await fetch(`${API}/land_units`, {
+    const r = await apiFetch(tokenRef.current, `${API}/land_units`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, land_unit_type: "yard", address }),
@@ -184,7 +191,7 @@ export default function CapturePage() {
           return;
         }
         try {
-          const r = await fetch(`${API}/places/resolve`, {
+          const r = await apiFetch(tokenRef.current, `${API}/places/resolve`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ lat: coords.lat, lon: coords.lng }),
@@ -222,7 +229,7 @@ export default function CapturePage() {
 
       try {
         // 1. Open observation session
-        const sessR = await fetch(`${API}/observation_sessions`, {
+        const sessR = await apiFetch(tokenRef.current, `${API}/observation_sessions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ land_unit_id: landUnitId }),
@@ -238,14 +245,14 @@ export default function CapturePage() {
           fd.append("device_lat", String(coords.lat));
           fd.append("device_lng", String(coords.lng));
         }
-        const frameR = await fetch(`${API}/observation_sessions/${sessionId}/frames`, {
+        const frameR = await apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}/frames`, {
           method: "POST",
           body: fd,
         });
         if (!frameR.ok) throw new Error(await frameR.text());
 
         // 3. Finalize session (creates interpretation record)
-        await fetch(`${API}/observation_sessions/${sessionId}/finalize`, { method: "PATCH" });
+        await apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}/finalize`, { method: "PATCH" });
       } catch (err: unknown) {
         setStatus("error");
         setErrorMsg(err instanceof Error ? err.message : "Upload failed");
@@ -257,7 +264,7 @@ export default function CapturePage() {
       setStatus("scoring");
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const result = await pollScore(landUnitId, ctrl.signal);
+      const result = await pollScore(tokenRef.current, landUnitId, ctrl.signal);
       abortRef.current = null;
 
       if (result) {

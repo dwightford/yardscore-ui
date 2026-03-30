@@ -1,9 +1,18 @@
 import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { SignJWT } from "jose";
 
 // Server-side API URL: inside Docker use service name, outside use localhost
 const API_INTERNAL = process.env.API_INTERNAL_URL ?? "http://api:8000";
+
+async function createApiToken(userId: string, email: string): Promise<string> {
+  const secret = new TextEncoder().encode(process.env.AUTH_SECRET);
+  return new SignJWT({ sub: userId, email })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("30d")
+    .sign(secret);
+}
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -47,6 +56,8 @@ export const authConfig: NextAuthConfig = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        // Create a plain HS256 JWT for API calls
+        token.apiToken = await createApiToken(user.id as string, user.email as string);
       }
       return token;
     },
@@ -55,6 +66,7 @@ export const authConfig: NextAuthConfig = {
         (session.user as any).id = token.id;
         (session.user as any).email = token.email;
         (session.user as any).name = token.name;
+        (session as any).apiToken = token.apiToken;
       }
       return session;
     },

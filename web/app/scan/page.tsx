@@ -15,6 +15,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -123,6 +125,11 @@ function elapsed(startTime: number): string {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ScanPage() {
+  const { data: session } = useSession();
+  const tokenRef = useRef<string | undefined>(undefined);
+  // Keep token in a ref so capture callbacks always have the latest
+  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+
   const [state, setState] = useState<ScanState>({
     status: "idle",
     sessionId: null,
@@ -269,7 +276,7 @@ export default function ScanPage() {
     let landUnitId: string | null = null;
     if (coords) {
       try {
-        const r = await fetch(`${API}/places/resolve`, {
+        const r = await apiFetch(tokenRef.current, `${API}/places/resolve`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ lat: coords.lat, lon: coords.lng }),
@@ -280,7 +287,7 @@ export default function ScanPage() {
 
     if (!landUnitId) {
       try {
-        const r = await fetch(`${API}/land_units`, {
+        const r = await apiFetch(tokenRef.current, `${API}/land_units`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: "Scan Location", land_unit_type: "yard" }),
@@ -298,7 +305,7 @@ export default function ScanPage() {
     // Open session
     let sessionId: string | null = null;
     try {
-      const r = await fetch(`${API}/observation_sessions`, {
+      const r = await apiFetch(tokenRef.current, `${API}/observation_sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -366,7 +373,7 @@ export default function ScanPage() {
         fd.append("compass_heading", String(headingRef.current));
       }
 
-      fetch(`${API}/observation_sessions/${sessionId}/frames`, {
+      apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}/frames`, {
         method: "POST",
         body: fd,
       }).then((r) => {
@@ -398,7 +405,7 @@ export default function ScanPage() {
       const classifyFd = new FormData();
       classifyFd.append("file", blob, `classify_${Date.now()}.jpg`);
 
-      const r = await fetch(`${API}/vision/classify`, {
+      const r = await apiFetch(tokenRef.current, `${API}/vision/classify`, {
         method: "POST",
         body: classifyFd,
       });
@@ -487,7 +494,7 @@ export default function ScanPage() {
     }
 
     try {
-      await fetch(`${API}/observation_sessions/${sessionId}/finalize`, { method: "PATCH" });
+      await apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}/finalize`, { method: "PATCH" });
     } catch { /* frames are saved regardless */ }
 
     setState((s) => ({ ...s, status: "done" }));

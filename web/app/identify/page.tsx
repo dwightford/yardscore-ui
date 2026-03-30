@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import NavBar from "../components/NavBar";
 
@@ -30,6 +32,10 @@ export default function IdentifyPageWrapper() {
 }
 
 function IdentifyPage() {
+  const { data: session } = useSession();
+  const tokenRef = useRef<string | undefined>(undefined);
+  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+
   const searchParams = useSearchParams();
   const entityId = searchParams.get("entity");
   const entityName = searchParams.get("name") || "Unknown";
@@ -62,7 +68,7 @@ function IdentifyPage() {
       if (entityId) fd.append("entity_id", entityId);
       fd.append("organ", organ);
 
-      const r = await fetch(`${API}/species/identify`, {
+      const r = await apiFetch(tokenRef.current, `${API}/species/identify`, {
         method: "POST",
         body: fd,
       });

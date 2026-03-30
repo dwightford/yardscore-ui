@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -110,7 +112,6 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-white/20 transition-colors">
-      {/* Main row */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-4 px-5 py-4 text-left"
@@ -139,26 +140,15 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
         </div>
       </button>
 
-      {/* Expanded: scan history + actions */}
       {expanded && (
         <div className="border-t border-white/5 px-5 py-4 space-y-4">
-          {/* Quick actions */}
           <div className="flex gap-2">
-            <a href="/scan" className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">
-              Scan
-            </a>
-            <a href="/map" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">
-              Map
-            </a>
-            <a href={`/capture?place=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">
-              Upload
-            </a>
-            <a href={`/identify`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">
-              Identify
-            </a>
+            <a href="/scan" className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">Scan</a>
+            <a href="/map" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Map</a>
+            <a href={`/capture?place=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Upload</a>
+            <a href={`/identify`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Identify</a>
           </div>
 
-          {/* Scan history */}
           {sessions.length > 0 ? (
             <div>
               <p className="text-xs text-zinc-500 mb-2">Recent scans</p>
@@ -178,7 +168,6 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
             <p className="text-xs text-zinc-500 text-center py-2">No scans yet — go outside and scan this property.</p>
           )}
 
-          {/* Meta */}
           <div className="flex items-center justify-between text-[10px] text-zinc-600">
             <span>{hasParcel ? "✓ Parcel linked" : "No parcel"}</span>
             <span>Added {timeAgo(place.created_at)}</span>
@@ -191,7 +180,7 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
 
 // ── New property form ─────────────────────────────────────────────────────────
 
-function NewPropertyForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+function NewPropertyForm({ token, onCreated, onCancel }: { token: string | undefined; onCreated: () => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [type, setType] = useState("yard");
   const [address, setAddress] = useState("");
@@ -204,7 +193,7 @@ function NewPropertyForm({ onCreated, onCancel }: { onCreated: () => void; onCan
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API}/land_units`, {
+      const res = await apiFetch(token, `${API}/land_units`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), land_unit_type: type, address: address.trim() || null }),
@@ -260,33 +249,35 @@ function NewPropertyForm({ onCreated, onCancel }: { onCreated: () => void; onCan
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const { data: session } = useSession();
+  const token = (session as any)?.apiToken as string | undefined;
+
   const [places, setPlaces] = useState<PlaceWithData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewPlace, setShowNewPlace] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadPlaces = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/land_units`);
+      const res = await apiFetch(token, `${API}/land_units`);
       if (!res.ok) throw new Error();
       const units: LandUnit[] = await res.json();
 
-      // Show immediately with loading state
       setPlaces(units.map((p) => ({
         place: p, score: null, entityCount: 0, hasParcel: false, sessions: [], loading: true,
       })));
       setLoading(false);
 
-      // Hydrate with scores, entities, sessions in parallel
       const hydrated = await Promise.all(
         units.map(async (p) => {
           try {
             const [sr, er, pr, sesr] = await Promise.all([
-              fetch(`${API}/yardscore/${p.id}/latest`),
-              fetch(`${API}/entities?land_unit_id=${p.id}`),
-              fetch(`${API}/parcels?land_unit_id=${p.id}`),
-              fetch(`${API}/observation_sessions?land_unit_id=${p.id}`),
+              apiFetch(token, `${API}/yardscore/${p.id}/latest`),
+              apiFetch(token, `${API}/entities?land_unit_id=${p.id}`),
+              apiFetch(token, `${API}/parcels?land_unit_id=${p.id}`),
+              apiFetch(token, `${API}/observation_sessions?land_unit_id=${p.id}`),
             ]);
             return {
               place: p,
@@ -305,11 +296,10 @@ export default function Dashboard() {
     } catch {
       setLoading(false);
     }
-  }, [refreshKey]);
+  }, [token, refreshKey]);
 
   useEffect(() => { loadPlaces(); }, [loadPlaces]);
 
-  // Stats across all properties
   const totalPlants = places.reduce((sum, p) => sum + p.entityCount, 0);
   const totalScans = places.reduce((sum, p) => sum + p.sessions.length, 0);
   const avgScore = places.filter(p => p.score).length > 0
@@ -318,7 +308,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#07110c]">
-      {/* Nav */}
       <nav className="border-b border-white/5 bg-[#07110c]">
         <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
           <a href="/dashboard" className="flex items-center gap-2">
@@ -338,7 +327,6 @@ export default function Dashboard() {
       </nav>
 
       <div className="max-w-5xl mx-auto px-5 py-8">
-        {/* Stats bar */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
             <p className="text-xs text-zinc-500">Properties</p>
@@ -360,33 +348,27 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Header + CTA */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-white">Your Properties</h1>
           <div className="flex items-center gap-2">
-            <a href="/scan" className="px-4 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg hover:bg-lime-200 transition-colors">
-              Start Scan
-            </a>
+            <a href="/scan" className="px-4 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg hover:bg-lime-200 transition-colors">Start Scan</a>
             <button
               onClick={() => setShowNewPlace(true)}
               className="px-4 py-2 bg-white/10 text-white text-xs font-medium rounded-lg hover:bg-white/20 transition-colors"
-            >
-              + Add Property
-            </button>
+            >+ Add Property</button>
           </div>
         </div>
 
-        {/* New property form */}
         {showNewPlace && (
           <div className="mb-6 max-w-md">
             <NewPropertyForm
+              token={token}
               onCreated={() => { setShowNewPlace(false); setRefreshKey((k) => k + 1); }}
               onCancel={() => setShowNewPlace(false)}
             />
           </div>
         )}
 
-        {/* Property list */}
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -402,9 +384,7 @@ export default function Dashboard() {
             </div>
             <h2 className="text-lg font-semibold text-white mb-1">No properties yet</h2>
             <p className="text-sm text-zinc-400 mb-6">Start a scan to create your first property automatically from GPS.</p>
-            <a href="/scan" className="inline-flex px-6 py-3 bg-lime-300 text-zinc-950 font-semibold rounded-xl text-sm hover:bg-lime-200 transition-colors">
-              Start Your First Scan
-            </a>
+            <a href="/scan" className="inline-flex px-6 py-3 bg-lime-300 text-zinc-950 font-semibold rounded-xl text-sm hover:bg-lime-200 transition-colors">Start Your First Scan</a>
           </div>
         ) : (
           <div className="space-y-3">
@@ -415,7 +395,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Footer */}
       <footer className="text-center text-[10px] text-zinc-600 py-8">
         YardScore by DrewHenry · Observation → Intelligence
       </footer>

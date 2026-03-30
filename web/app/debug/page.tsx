@@ -5,7 +5,9 @@
  * Desktop-only. Not linked in mobile nav.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -39,6 +41,10 @@ interface Frame {
 }
 
 export default function DebugPage() {
+  const { data: session } = useSession();
+  const tokenRef = useRef<string | undefined>(undefined);
+  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+
   const [landUnits, setLandUnits] = useState<LandUnit[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -54,7 +60,7 @@ export default function DebugPage() {
 
   // Load land units
   useEffect(() => {
-    fetch(`${API}/land_units`)
+    apiFetch(tokenRef.current, `${API}/land_units`)
       .then((r) => r.json())
       .then((data) => {
         setLandUnits(data);
@@ -66,7 +72,7 @@ export default function DebugPage() {
   // Load sessions when a unit is selected
   useEffect(() => {
     if (!selectedUnit) return;
-    fetch(`${API}/observation_sessions?land_unit_id=${selectedUnit}`)
+    apiFetch(tokenRef.current, `${API}/observation_sessions?land_unit_id=${selectedUnit}`)
       .then((r) => r.json())
       .then((data) => {
         setSessions(data);
@@ -79,7 +85,7 @@ export default function DebugPage() {
   async function loadSessionDetail(sessionId: string) {
     log(`Loading session ${sessionId}...`);
     try {
-      const r = await fetch(`${API}/observation_sessions/${sessionId}`);
+      const r = await apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}`);
       const data = await r.json();
       setSelectedSession(data);
       log(`Session ${sessionId}: ${data.frames?.length ?? 0} frames`);
@@ -96,13 +102,13 @@ export default function DebugPage() {
 
     try {
       // Fetch the image from the uploads URL
-      const imgResp = await fetch(`${API}${frameUrl}`);
+      const imgResp = await apiFetch(tokenRef.current, `${API}${frameUrl}`);
       const blob = await imgResp.blob();
 
       const fd = new FormData();
       fd.append("file", blob, "frame.jpg");
 
-      const r = await fetch(`${API}/vision/classify`, {
+      const r = await apiFetch(tokenRef.current, `${API}/vision/classify`, {
         method: "POST",
         body: fd,
       });
@@ -134,7 +140,7 @@ export default function DebugPage() {
       const fd = new FormData();
       fd.append("file", blob, "test.jpg");
 
-      const r = await fetch(`${API}/vision/classify`, {
+      const r = await apiFetch(tokenRef.current, `${API}/vision/classify`, {
         method: "POST",
         body: fd,
       });

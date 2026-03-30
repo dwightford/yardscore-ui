@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -73,6 +75,10 @@ function useErrorCapture(): string[] {
 }
 
 export default function FeedbackWidget() {
+  const { data: session } = useSession();
+  const tokenRef = useRef<string | undefined>(undefined);
+  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -98,7 +104,7 @@ export default function FeedbackWidget() {
     setStatus("sending");
     try {
       const context = collectContext();
-      const r = await fetch(`${API}/feedback`, {
+      const r = await apiFetch(tokenRef.current, `${API}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import Providers from "./providers";
 import FeedbackWidget from "./components/FeedbackWidget";
 
 export const metadata: Metadata = {
@@ -29,8 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen bg-[#07110c]">
-        {children}
-        <FeedbackWidget />
+        <Providers>
+          {children}
+          <FeedbackWidget />
+        </Providers>
       </body>
     </html>
   );

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 import NavBar from "../components/NavBar";
@@ -134,9 +136,9 @@ function makeEntityIcon(type: string, sizeClass: string | null) {
 }
 
 /** Update entity position via API after drag */
-async function updateEntityPosition(entityId: string, lat: number, lng: number) {
+async function updateEntityPosition(token: string | undefined, entityId: string, lat: number, lng: number) {
   try {
-    await fetch(`${API}/entities/${entityId}/position`, {
+    await apiFetch(token, `${API}/entities/${entityId}/position`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lat, lng }),
@@ -154,6 +156,10 @@ function formatDate(iso: string | null): string {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
+  const { data: session } = useSession();
+  const tokenRef = useRef<string | undefined>(undefined);
+  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+
   const [places, setPlaces] = useState<LandUnit[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [parcels, setParcels] = useState<Parcel[]>([]);
@@ -166,7 +172,7 @@ export default function MapPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API}/land_units`);
+        const res = await apiFetch(tokenRef.current, `${API}/land_units`);
         if (!res.ok) throw new Error(await res.text());
         const data: LandUnit[] = await res.json();
         setPlaces(data);
@@ -186,8 +192,8 @@ export default function MapPage() {
     setEntities([]);
     try {
       const [parcelsRes, entitiesRes] = await Promise.all([
-        fetch(`${API}/parcels?land_unit_id=${landUnitId}`),
-        fetch(`${API}/entities?land_unit_id=${landUnitId}`),
+        apiFetch(tokenRef.current, `${API}/parcels?land_unit_id=${landUnitId}`),
+        apiFetch(tokenRef.current, `${API}/entities?land_unit_id=${landUnitId}`),
       ]);
       if (parcelsRes.ok) {
         const parcelList = await parcelsRes.json();
@@ -195,7 +201,7 @@ export default function MapPage() {
         const withGeom = await Promise.all(
           parcelList.map(async (p: Parcel) => {
             try {
-              const dr = await fetch(`${API}/parcels/${p.id}`);
+              const dr = await apiFetch(tokenRef.current, `${API}/parcels/${p.id}`);
               if (dr.ok) return await dr.json();
               return p;
             } catch (e) { return p; }
@@ -336,7 +342,7 @@ export default function MapPage() {
                         )
                       );
                       // Persist to server
-                      updateEntityPosition(entity.id, pos.lat, pos.lng);
+                      updateEntityPosition(tokenRef.current, entity.id, pos.lat, pos.lng);
                     },
                   }}
                 >
