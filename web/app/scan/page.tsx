@@ -178,6 +178,11 @@ export default function ScanPage() {
   const [lightLabel, setLightLabel] = useState("");
   const [lightColor, setLightColor] = useState("text-zinc-500");
 
+  // Multi-shot identification state
+  const [shotCount, setShotCount] = useState(0);
+  const shotBufferRef = useRef<Blob[]>([]);
+  const shotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -430,10 +435,53 @@ export default function ScanPage() {
     }
   }
 
-  // ── Identify plant via PlantNet API (tap-to-identify, ~1-2s) ────────────────
+  // ── Multi-shot: collect frames then identify ─────────────────────────────────
+
+  function collectShot() {
+    if (!videoRef.current) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth || 1280;
+    canvas.height = videoRef.current.videoHeight || 720;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(videoRef.current, 0, 0);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      shotBufferRef.current.push(blob);
+      setShotCount(shotBufferRef.current.length);
+
+      // Clear existing auto-submit timer
+      if (shotTimerRef.current) clearTimeout(shotTimerRef.current);
+
+      // Auto-submit after 4 seconds of no new taps (or if 5 shots collected)
+      if (shotBufferRef.current.length >= 5) {
+        submitMultiShot();
+      } else {
+        shotTimerRef.current = setTimeout(() => {
+          submitMultiShot();
+        }, 4000);
+      }
+    }, "image/jpeg", 0.85);
+
+    if (navigator.vibrate) navigator.vibrate(30);
+  }
+
+  function submitMultiShot() {
+    if (shotTimerRef.current) clearTimeout(shotTimerRef.current);
+    const blobs = [...shotBufferRef.current];
+    shotBufferRef.current = [];
+    setShotCount(0);
+    if (blobs.length > 0) {
+      identifyPlant(blobs, state.coords);
+    }
+  }
+
+  // ── Identify plant via PlantNet API (supports 1-5 images) ──────────────────
 
   async function identifyPlant(
-    blob: Blob,
+    blobs: Blob[],
     coords: { lat: number; lng: number } | null,
   ) {
     classifyingRef.current = true;
@@ -441,7 +489,16 @@ export default function ScanPage() {
 
     try {
       const fd = new FormData();
-      fd.append("file", blob, `identify_${Date.now()}.jpg`);
+      if (blobs.length === 1) {
+        // Single shot — backward compatible
+        fd.append("file", blobs[0], `identify_${Date.now()}.jpg`);
+      } else {
+        // Multi-shot — send indexed files
+        blobs.forEach((blob, i) => {
+          fd.append(`file_${i}`, blob, `identify_${i}_${Date.now()}.jpg`);
+          fd.append(`organ_${i}`, "auto");
+        });
+      }
 
       const r = await fetch("/plantnet-proxy", { method: "POST", body: fd });
 
@@ -583,18 +640,13 @@ export default function ScanPage() {
 
   const manualCapture = useCallback(async () => {
     if (state.sessionId && state.status === "scanning") {
-      if (navigator.vibrate) navigator.vibrate(50);
-
-      // Capture frame + upload
+      // Capture frame + upload to session
       captureFrame(state.sessionId, state.coords);
 
-      // Also identify plant via PlantNet (if not already classifying)
-      if (!classifyingRef.current && videoRef.current) {
-        const blob = await captureFrameFromVideo(videoRef.current);
-        if (blob) {
-          const coords = state.coords;
-          identifyPlant(blob, coords);
-        }
+      // Collect shot for multi-shot identification
+      // (if not already mid-classification — allow adding more shots during collection)
+      if (!classifyingRef.current) {
+        collectShot();
       }
     }
   }, [state.sessionId, state.status, state.coords]);
@@ -815,17 +867,42 @@ export default function ScanPage() {
 
           {/* Bottom: capture button + end scan — fixed thumb zone */}
           <div className="pointer-events-auto px-4 pb-8">
-            {/* Identify button — large, always reachable */}
+            {/* Identify button — large, always reachable. Shows shot count during multi-shot. */}
             <div className="flex items-center justify-center mb-4">
-              <button
-                onClick={manualCapture}
-                className="w-20 h-20 rounded-full bg-lime-300/90 backdrop-blur-md border-4 border-white/80 flex flex-col items-center justify-center active:scale-90 transition-transform shadow-xl shadow-lime-300/20"
-              >
-                <svg className="w-8 h-8 text-zinc-900" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
-                </svg>
-                <span className="text-[8px] font-bold text-zinc-900 uppercase tracking-wider mt-0.5">ID</span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={manualCapture}
+                  className={`w-20 h-20 rounded-full backdrop-blur-md border-4 flex flex-col items-center justify-center active:scale-90 transition-transform shadow-xl ${
+                    shotCount > 0
+                      ? "bg-yellow-300/90 border-yellow-200/80 shadow-yellow-300/20"
+                      : "bg-lime-300/90 border-white/80 shadow-lime-300/20"
+                  }`}
+                >
+                  {shotCount > 0 ? (
+                    <>
+                      <span className="text-2xl font-bold text-zinc-900">{shotCount}</span>
+                      <span className="text-[7px] font-bold text-zinc-700 uppercase">more ↑</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-8 h-8 text-zinc-900" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
+                      </svg>
+                      <span className="text-[8px] font-bold text-zinc-900 uppercase tracking-wider mt-0.5">ID</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Submit now button appears during multi-shot collection */}
+                {shotCount > 0 && (
+                  <button
+                    onClick={submitMultiShot}
+                    className="absolute -right-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-lime-300 text-zinc-900 text-[10px] font-bold rounded-full active:scale-95"
+                  >
+                    ID Now
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* End scan + stats */}
