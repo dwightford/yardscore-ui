@@ -47,6 +47,13 @@ const ENTITY_COLORS: Record<string, string> = {
   ground_cover: "#65a30d", // dark lime
 };
 
+const ENTITY_RADIUS: Record<string, number> = {
+  tree: 10,
+  shrub: 7,
+  herb: 5,
+  ground_cover: 4,
+};
+
 export default function AdminMapPage() {
   const { data: session } = useSession();
   const token = (session as any)?.apiToken as string | undefined;
@@ -156,7 +163,7 @@ export default function AdminMapPage() {
               <CircleMarker
                 key={e.id}
                 center={[e.estimated_lat!, e.estimated_lng!]}
-                radius={8}
+                radius={ENTITY_RADIUS[e.entity_type] || 6}
                 pathOptions={{
                   color: ENTITY_COLORS[e.entity_type] || "#84cc16",
                   fillColor: ENTITY_COLORS[e.entity_type] || "#84cc16",

@@ -78,24 +78,23 @@ interface Entity {
 
 function entityColor(type: string): string {
   const t = type.toLowerCase();
-  if (t === "tree") return "#2d6a4f";
-  if (t === "shrub") return "#52b788";
+  if (t === "tree") return "#84cc16";
+  if (t === "shrub") return "#22c55e";
+  if (t === "herb") return "#a3e635";
+  if (t === "ground_cover") return "#65a30d";
   if (t === "structure") return "#6b7280";
-  return "#ffffff";
+  return "#84cc16";
 }
 
-function entityRadius(sizeClass: string | null): number {
-  switch (sizeClass?.toLowerCase()) {
-    case "large":
-      return 18;
-    case "medium":
-      return 14;
-    case "small":
-      return 10;
-    default:
-      return 12;
-  }
+function entityRadius(type: string): number {
+  const t = type.toLowerCase();
+  if (t === "tree") return 10;
+  if (t === "shrub") return 7;
+  if (t === "herb") return 5;
+  if (t === "ground_cover") return 4;
+  return 6;
 }
+
 
 /** Convert GeoJSON Polygon/MultiPolygon coordinates to Leaflet LatLng arrays */
 function geojsonToLatLngs(
@@ -114,25 +113,6 @@ function geojsonToLatLngs(
     );
   }
   return [];
-}
-
-/** Create a colored circle DivIcon for entity markers (lazy L import for SSR compat) */
-function makeEntityIcon(type: string, sizeClass: string | null) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const L = require("leaflet");
-  const size = entityRadius(sizeClass) * 2;
-  const color = entityColor(type);
-  return L.divIcon({
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    html: `<div style="
-      width:${size}px;height:${size}px;border-radius:50%;
-      background:${color};border:3px solid white;
-      box-shadow:0 2px 6px rgba(0,0,0,0.4);
-      cursor:grab;
-    "></div>`,
-  });
 }
 
 /** Update entity position via API after drag */
@@ -321,32 +301,20 @@ export default function MapPage() {
               );
             })}
 
-            {/* Draggable entity markers */}
+            {/* Entity markers — colored circles by type, tap for details */}
             {entities.map((entity) => {
               if (entity.estimated_lat == null || entity.estimated_lng == null)
                 return null;
-              const icon = makeEntityIcon(entity.entity_type, entity.size_class);
               return (
-                <Marker
+                <CircleMarker
                   key={entity.id}
-                  position={[entity.estimated_lat, entity.estimated_lng]}
-                  icon={icon}
-                  draggable={true}
-                  eventHandlers={{
-                    dragend: (e) => {
-                      const marker = e.target;
-                      const pos = marker.getLatLng();
-                      // Update local state
-                      setEntities((prev) =>
-                        prev.map((ent) =>
-                          ent.id === entity.id
-                            ? { ...ent, estimated_lat: pos.lat, estimated_lng: pos.lng }
-                            : ent
-                        )
-                      );
-                      // Persist to server
-                      updateEntityPosition(tokenRef.current, entity.id, pos.lat, pos.lng);
-                    },
+                  center={[entity.estimated_lat, entity.estimated_lng]}
+                  radius={entityRadius(entity.entity_type)}
+                  pathOptions={{
+                    color: entityColor(entity.entity_type),
+                    fillColor: entityColor(entity.entity_type),
+                    fillOpacity: 0.7,
+                    weight: 2,
                   }}
                 >
                   <Popup>
@@ -375,20 +343,32 @@ export default function MapPage() {
                           {(entity as any).species ? "Re-identify" : "Identify Species"}
                         </a>
                       </div>
-                      <p className="text-gray-300 text-[10px] mt-1">
-                        Drag to correct position
-                      </p>
                     </div>
                   </Popup>
-                  <Tooltip permanent direction="top" offset={[0, -16]}
-                    className="!bg-black/80 !text-white !border-0 !rounded !px-2 !py-1 !text-xs !font-bold !shadow-lg">
-                    {entity.label}
-                  </Tooltip>
-                </Marker>
+                </CircleMarker>
               );
             })}
           </MapContainer>
         )}
+
+        {/* Legend */}
+        <div className="absolute bottom-4 left-4 z-[1000] bg-black/70 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-3">
+          {[
+            { type: "tree", label: "Tree" },
+            { type: "shrub", label: "Shrub" },
+            { type: "herb", label: "Herb" },
+            { type: "ground_cover", label: "Ground" },
+          ].map(({ type, label }) => (
+            <div key={type} className="flex items-center gap-1.5">
+              <div className="rounded-full" style={{
+                backgroundColor: entityColor(type),
+                width: entityRadius(type) * 2,
+                height: entityRadius(type) * 2,
+              }} />
+              <span className="text-[10px] text-white/70">{label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

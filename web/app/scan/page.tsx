@@ -154,6 +154,7 @@ export default function ScanPage() {
   const classifyingRef = useRef(false);
   const classifyQueueRef = useRef<Blob[]>([]);
   const headingRef = useRef<number | null>(null);
+  const pitchRef = useRef<number | null>(null);
   const [gpsSignal, setGpsSignal] = useState<"strong" | "weak" | "none">("none");
 
   // ── Cleanup on unmount ──────────────────────────────────────────────────────
@@ -162,6 +163,8 @@ export default function ScanPage() {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       const heading = (e as any).webkitCompassHeading ?? (e.alpha != null ? (360 - e.alpha) % 360 : null);
       if (heading != null) headingRef.current = Math.round(heading);
+      // Pitch: beta is the front-to-back tilt (0=flat, 90=vertical, negative=tilted back)
+      if (e.beta != null) pitchRef.current = Math.round(e.beta);
     };
     window.addEventListener("deviceorientation", handleOrientation, true);
 
@@ -451,6 +454,7 @@ export default function ScanPage() {
                 lat: coords.lat,
                 lng: coords.lng,
                 heading: headingRef.current,
+                pitch: pitchRef.current,
                 entity_type: category,
                 size_class: null,
                 species,
