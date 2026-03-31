@@ -346,33 +346,30 @@ export default function MapPage() {
                   }}
                 >
                   <Popup>
-                    <div className="text-sm space-y-1 min-w-[160px]">
-                      <p className="font-semibold text-gray-800">
+                    <div className="text-sm space-y-1.5 min-w-[180px] p-1" style={{ color: "#1a1a1a" }}>
+                      <p className="font-bold text-base" style={{ color: "#111" }}>
                         {entity.label}
                       </p>
-                      <p className="text-gray-500 text-xs">
-                        {entity.entity_type}
-                        {entity.size_class ? ` · ${entity.size_class}` : ""}
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        {entity.observation_count} observation
-                        {entity.observation_count !== 1 ? "s" : ""}
-                      </p>
-                      {(entity as any).species && (
-                        <p className="text-green-600 text-xs font-medium mt-1">
+                      {(entity as any).species && (entity as any).species !== entity.label && (
+                        <p className="italic text-xs" style={{ color: "#2d6a4f" }}>
                           {(entity as any).species}
                         </p>
                       )}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex items-center gap-2 text-xs" style={{ color: "#555" }}>
+                        <span className="capitalize">{entity.entity_type}</span>
+                        <span>·</span>
+                        <span>{entity.observation_count} observation{entity.observation_count !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: "1px solid #e5e5e5" }}>
                         <a
                           href={`/identify?entity=${entity.id}&name=${encodeURIComponent(entity.label)}`}
-                          className="text-[10px] font-semibold text-white bg-[#2d6a4f] px-2.5 py-1 rounded-md hover:bg-[#1b4332]"
+                          style={{ background: "#2d6a4f", color: "white", padding: "6px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, textDecoration: "none", display: "inline-block" }}
                         >
-                          {(entity as any).species ? "Re-identify" : "Identify Species"}
+                          {(entity as any).species ? "Add Observation" : "Identify Species"}
                         </a>
                       </div>
-                      <p className="text-gray-300 text-[10px] mt-1">
-                        Drag to correct position
+                      <p style={{ color: "#999", fontSize: "10px", marginTop: "4px" }}>
+                        Drag marker to correct position
                       </p>
                     </div>
                   </Popup>
