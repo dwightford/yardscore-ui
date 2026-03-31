@@ -237,10 +237,10 @@ export default function EcoEntryPage() {
             <a href="#how" className="transition hover:text-white">How It Works</a>
             <a href="#audiences" className="transition hover:text-white">Built For</a>
             <a href="#value" className="transition hover:text-white">Value</a>
-            <a href="#access" className="transition hover:text-white">Early Access</a>
           </nav>
 
-          <div className="hidden md:block">
+          <div className="hidden items-center gap-4 md:flex">
+            <a href="/login" className="text-sm text-zinc-300 transition hover:text-white">Sign In</a>
             <a href="#access" className="rounded-full border border-lime-300/30 bg-lime-300/10 px-5 py-2.5 text-sm font-medium text-lime-100 transition hover:bg-lime-300/20">
               Request Access
             </a>
