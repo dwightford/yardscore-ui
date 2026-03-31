@@ -380,11 +380,7 @@ export default function ScanPage() {
         if (r.ok) setState((prev) => ({ ...prev, frameCount: prev.frameCount + 1 }));
       }).catch(() => {});
 
-      // Queue for classification (don't await — runs in background)
-      if (!classifyingRef.current) {
-        classifyInBackground(blob, coords);
-      }
-      // else: skip classification for this frame, GPU is busy
+      // Auto-capture does NOT classify — classification is manual tap only
     } catch {
       // Frame capture failed
     } finally {
@@ -392,9 +388,9 @@ export default function ScanPage() {
     }
   }
 
-  // ── Classify in background (slow, ~10-80s, never blocks capture) ───────────
+  // ── Identify plant via PlantNet API (tap-to-identify, ~1-2s) ────────────────
 
-  async function classifyInBackground(
+  async function identifyPlant(
     blob: Blob,
     coords: { lat: number; lng: number } | null,
   ) {
@@ -402,63 +398,65 @@ export default function ScanPage() {
     setClassifying(true);
 
     try {
-      const classifyFd = new FormData();
-      classifyFd.append("file", blob, `classify_${Date.now()}.jpg`);
+      const fd = new FormData();
+      fd.append("file", blob, `identify_${Date.now()}.jpg`);
 
-      const r = await apiFetch(tokenRef.current, `${API}/vision/classify`, {
-        method: "POST",
-        body: classifyFd,
-      });
+      const r = await fetch("/plantnet-proxy", { method: "POST", body: fd });
 
       if (r.ok) {
         const data = await r.json();
-        if (data.observations && data.observations.length > 0) {
-          const newObs: Observation[] = data.observations.map((obs: any) => ({
+        const plantResults = (data.results || []).slice(0, 5);
+
+        if (plantResults.length > 0) {
+          const best = plantResults[0];
+          const species = best.species?.scientificNameWithoutAuthor || "Unknown";
+          const commonName = best.species?.commonNames?.[0] || "";
+          const family = best.species?.family?.scientificNameWithoutAuthor || "";
+          const genus = best.species?.genus?.scientificNameWithoutAuthor || "";
+          const score = best.score || 0;
+
+          // Determine category from family/genus
+          // (rough heuristic — trees vs shrubs vs herbs)
+          let category = "herb";
+          const treeFamilies = ["Fagaceae", "Aceraceae", "Sapindaceae", "Pinaceae", "Betulaceae", "Juglandaceae", "Ulmaceae", "Platanaceae", "Oleaceae", "Magnoliaceae", "Cornaceae"];
+          const shrubFamilies = ["Rosaceae", "Ericaceae", "Caprifoliaceae", "Hydrangeaceae", "Berberidaceae", "Buxaceae"];
+          if (treeFamilies.includes(family)) category = "tree";
+          else if (shrubFamilies.includes(family)) category = "shrub";
+
+          const obs: Observation = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            category: obs.category,
-            count: obs.count || 1,
-            layer: obs.layer || null,
-            label: obs.label,
-            species: obs.species,
-            confidence: obs.confidence,
-            size: obs.size,
-            native_status: obs.native_status || null,
-            notes: obs.notes,
+            category,
+            count: 1,
+            layer: category === "tree" ? "canopy" : category === "shrub" ? "understory" : "ground",
+            label: commonName || species,
+            species,
+            confidence: score,
+            size: null,
+            native_status: null,
+            notes: `Family: ${family}, Genus: ${genus}`,
             timestamp: Date.now(),
             lat: coords?.lat ?? null,
             lng: coords?.lng ?? null,
-          }));
+          };
 
-          setObservations((prev) => [...prev, ...newObs]);
+          setObservations((prev) => [...prev, obs]);
 
-          // Update counts using count field from model
           setState((prev) => {
             const counts = { ...prev.liveCounts };
-            for (const obs of newObs) {
-              const n = obs.count;
-              if (obs.category === "tree") counts.trees += n;
-              else if (obs.category === "shrub") counts.shrubs += n;
-              else if (obs.category === "herb") counts.herbs += n;
-              else if (obs.category === "ground_cover") counts.ground_cover += n;
-            }
+            if (category === "tree") counts.trees += 1;
+            else if (category === "shrub") counts.shrubs += 1;
+            else if (category === "herb") counts.herbs += 1;
+            else counts.ground_cover += 1;
             return { ...prev, liveCounts: counts };
           });
 
-          // Show latest label with count, size, and native status
-          const best = newObs.reduce((a, b) => a.confidence > b.confidence ? a : b);
+          // Show label
           const parts: string[] = [];
-          if (best.count > 1) parts.push(`${best.count}×`);
-          parts.push(best.label);
-          if (best.size) parts.push(`· ${best.size}`);
-          const line2: string[] = [];
-          if (best.native_status && best.native_status !== "unknown") {
-            const emoji = best.native_status === "native" ? "✓" : best.native_status === "invasive" ? "⚠" : "○";
-            line2.push(`${emoji} ${best.native_status}`);
-          }
-          if (best.species) line2.push(best.species);
-          if (line2.length > 0) parts.push(`\n${line2.join(" · ")}`);
+          parts.push(commonName || species);
+          if (commonName && species !== commonName) parts.push(`\n${species}`);
+          parts.push(`\n${family} · ${(score * 100).toFixed(0)}%`);
           setLatestLabel(parts.join(" "));
-          setTimeout(() => setLatestLabel(null), 5000);
+          setTimeout(() => setLatestLabel(null), 6000);
         }
       }
     } catch {
@@ -471,10 +469,21 @@ export default function ScanPage() {
 
   // ── Manual capture (tap) ────────────────────────────────────────────────────
 
-  const manualCapture = useCallback(() => {
+  const manualCapture = useCallback(async () => {
     if (state.sessionId && state.status === "scanning") {
-      captureFrame(state.sessionId, state.coords);
       if (navigator.vibrate) navigator.vibrate(50);
+
+      // Capture frame + upload
+      captureFrame(state.sessionId, state.coords);
+
+      // Also identify plant via PlantNet (if not already classifying)
+      if (!classifyingRef.current && videoRef.current) {
+        const blob = await captureFrameFromVideo(videoRef.current);
+        if (blob) {
+          const coords = state.coords;
+          identifyPlant(blob, coords);
+        }
+      }
     }
   }, [state.sessionId, state.status, state.coords]);
 

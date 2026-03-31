@@ -49,6 +49,13 @@ interface ScoreResult {
   recommendations: string[];
 }
 
+interface PlantIdResult {
+  scientificName: string;
+  commonName: string;
+  family: string;
+  confidence: number;
+}
+
 type Status = "idle" | "uploading" | "scoring" | "done" | "error";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,6 +109,7 @@ export default function CapturePage() {
   const [newPlaceName, setNewPlaceName] = useState("");
   const [showNewPlaceInput, setShowNewPlaceInput] = useState(false);
   const [hasGps, setHasGps] = useState(false);
+  const [plantId, setPlantId] = useState<PlantIdResult | null>(null);
 
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -252,6 +260,24 @@ export default function CapturePage() {
         });
         if (!frameR.ok) throw new Error(await frameR.text());
 
+        // 2b. Identify plant via PlantNet (parallel with finalize)
+        const plantnetFd = new FormData();
+        plantnetFd.append("file", file);
+        fetch("/plantnet-proxy", { method: "POST", body: plantnetFd })
+          .then((pr) => pr.ok ? pr.json() : null)
+          .then((pdata) => {
+            if (pdata?.results?.[0]) {
+              const best = pdata.results[0];
+              setPlantId({
+                scientificName: best.species?.scientificNameWithoutAuthor || "Unknown",
+                commonName: best.species?.commonNames?.[0] || "",
+                family: best.species?.family?.scientificNameWithoutAuthor || "",
+                confidence: best.score || 0,
+              });
+            }
+          })
+          .catch(() => {});
+
         // 3. Finalize session (creates interpretation record)
         await apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}/finalize`, { method: "PATCH" });
       } catch (err: unknown) {
@@ -288,6 +314,7 @@ export default function CapturePage() {
     abortRef.current?.abort();
     setStatus("idle");
     setScore(null);
+    setPlantId(null);
     setPreview(null);
     setErrorMsg("");
   }
@@ -425,6 +452,18 @@ export default function CapturePage() {
             </div>
           )}
         </section>
+
+        {/* Plant identification result */}
+        {plantId && (
+          <section className="rounded-2xl border border-green-200 bg-green-50 p-4 shadow-sm">
+            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Plant Identified</p>
+            <p className="text-xl font-bold text-green-900 italic mt-1">{plantId.scientificName}</p>
+            {plantId.commonName && <p className="text-sm text-green-800">{plantId.commonName}</p>}
+            <p className="text-xs text-green-600 mt-1">
+              {plantId.family} · {(plantId.confidence * 100).toFixed(0)}% confidence
+            </p>
+          </section>
+        )}
 
         {/* Score result */}
         {status === "done" && score && (

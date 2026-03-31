@@ -15,9 +15,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Build PlantNet request
+    // Read file bytes and rebuild FormData with explicit Blob type
+    const bytes = await file.arrayBuffer();
+    const blob = new Blob([bytes], { type: "image/jpeg" });
+
     const plantnetForm = new FormData();
-    plantnetForm.append("images", file);
+    plantnetForm.append("images", blob, "capture.jpg");
     plantnetForm.append("organs", "auto");
 
     const url = `${PLANTNET_URL}?include-related-images=false&no-reject=true&nb-results=5&lang=en&type=kt&api-key=${PLANTNET_API_KEY}`;

@@ -110,7 +110,7 @@ export default function SpikePage() {
       fd.append("file", blob, "capture.jpg");
       fd.append("organ", "auto"); // let PlantNet decide
 
-      const r = await fetch("/api/plantnet", {
+      const r = await fetch("/plantnet-proxy", {
         method: "POST",
         body: fd,
       });
