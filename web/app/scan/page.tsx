@@ -1070,6 +1070,24 @@ export default function ScanPage() {
               </div>
             </div>
 
+            {/* Share */}
+            {state.landUnitId && (
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/share?id=${state.landUnitId}`;
+                  if (navigator.share) {
+                    navigator.share({ title: "My YardScore Census", text: `${report.totalSpecies} species, ${report.nativePercent}% native, ${report.wildlifeSpeciesEstimate} wildlife species supported`, url });
+                  } else {
+                    navigator.clipboard.writeText(url);
+                    alert("Link copied!");
+                  }
+                }}
+                className="w-full py-3.5 bg-white/10 border border-lime-300/30 text-lime-300 font-semibold rounded-2xl text-sm mb-3"
+              >
+                Share Census Report
+              </button>
+            )}
+
             {/* Actions */}
             <div className="space-y-3">
               <a
