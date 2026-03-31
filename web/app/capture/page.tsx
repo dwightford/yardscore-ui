@@ -109,10 +109,11 @@ export default function CapturePage() {
 
   // ── On mount: fetch places only — GPS is deferred to user tap ───────────────
 
+  const token = (session as any)?.apiToken as string | undefined;
+
   useEffect(() => {
-    // Fetch places
-    if (!tokenRef.current) return;
-    apiFetch(tokenRef.current, `${API}/land_units`)
+    if (!token) return;
+    apiFetch(token, `${API}/land_units`)
       .then((r) => r.json())
       .then((data: Place[]) => {
         setPlaces(data);
@@ -121,7 +122,7 @@ export default function CapturePage() {
       .catch(() => {
         /* non-critical: places chip row simply stays empty */
       });
-  }, []);
+  }, [token]);
 
   // ── Start GPS in background — called on user tap, not on mount ───────────────
   // This avoids triggering the iOS permission prompt during initial render.

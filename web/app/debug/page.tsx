@@ -58,16 +58,19 @@ export default function DebugPage() {
     setApiLogs((prev) => [...prev.slice(-49), `${new Date().toLocaleTimeString()} ${msg}`]);
   }
 
+  const token = (session as any)?.apiToken as string | undefined;
+
   // Load land units
   useEffect(() => {
-    apiFetch(tokenRef.current, `${API}/land_units`)
+    if (!token) return;
+    apiFetch(token, `${API}/land_units`)
       .then((r) => r.json())
       .then((data) => {
         setLandUnits(data);
         log(`Loaded ${data.length} land units`);
       })
       .catch((e) => log(`Error loading land units: ${e}`));
-  }, []);
+  }, [token]);
 
   // Load sessions when a unit is selected
   useEffect(() => {

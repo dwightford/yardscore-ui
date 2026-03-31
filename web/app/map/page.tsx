@@ -169,10 +169,13 @@ export default function MapPage() {
 
   // ── Load land units ──────────────────────────────────────────────────────
 
+  const token = (session as any)?.apiToken as string | undefined;
+
   useEffect(() => {
+    if (!token) return;
     (async () => {
       try {
-        const res = await apiFetch(tokenRef.current, `${API}/land_units`);
+        const res = await apiFetch(token, `${API}/land_units`);
         if (!res.ok) throw new Error(await res.text());
         const data: LandUnit[] = await res.json();
         setPlaces(data);
@@ -183,7 +186,7 @@ export default function MapPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [token]);
 
   // ── Load parcels + entities when selection changes ───────────────────────
 
