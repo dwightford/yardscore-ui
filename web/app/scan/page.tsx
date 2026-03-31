@@ -441,6 +441,23 @@ export default function ScanPage() {
 
           setObservations((prev) => [...prev, obs]);
 
+          // Create entity on backend so it appears on the map
+          if (coords && state.landUnitId) {
+            apiFetch(tokenRef.current, `${API}/entities/match`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                land_unit_id: state.landUnitId,
+                lat: coords.lat,
+                lng: coords.lng,
+                heading: headingRef.current,
+                entity_type: category,
+                size_class: null,
+                species,
+              }),
+            }).catch(() => {}); // fire-and-forget
+          }
+
           setState((prev) => {
             const counts = { ...prev.liveCounts };
             if (category === "tree") counts.trees += 1;
@@ -792,14 +809,20 @@ export default function ScanPage() {
             {/* Actions */}
             <div className="space-y-3">
               <a
+                href="/dashboard"
+                className="block w-full py-3.5 bg-lime-300 text-zinc-950 font-bold rounded-2xl text-sm text-center transition-colors hover:bg-lime-200"
+              >
+                Go to Dashboard
+              </a>
+              <a
                 href="/map"
                 className="block w-full py-3.5 bg-white/10 border border-white/10 text-white font-semibold rounded-2xl text-sm text-center transition-colors hover:bg-white/20"
               >
-                📍 View on Map
+                View on Map
               </a>
               <button
                 onClick={reset}
-                className="w-full py-3.5 bg-lime-300 text-zinc-950 font-bold rounded-2xl text-sm transition-colors hover:bg-lime-200"
+                className="w-full py-3.5 bg-white/10 border border-white/10 text-white font-medium rounded-2xl text-sm transition-colors hover:bg-white/20"
               >
                 Scan Again
               </button>
