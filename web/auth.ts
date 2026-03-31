@@ -80,6 +80,7 @@ export const authConfig: NextAuthConfig = {
       return true;
     },
   },
+  basePath: "/auth",
   session: { strategy: "jwt" },
   secret: process.env.AUTH_SECRET,
   trustHost: true,
