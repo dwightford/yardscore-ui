@@ -63,6 +63,10 @@ export interface CensusReport {
   // Wildlife estimate
   wildlifeSpeciesEstimate: number;
 
+  // Flora density (if parcel area known)
+  floraDensity: number | null; // plants per acre
+  speciesDensity: number | null; // species per acre
+
   // Recommendations
   recommendations: Recommendation[];
 
@@ -79,7 +83,7 @@ function layerStatus(count: number, species: number): "strong" | "moderate" | "w
   return "weak";
 }
 
-export function generateCensusReport(observations: Observation[], scanDurationMin?: number): CensusReport {
+export function generateCensusReport(observations: Observation[], scanDurationMin?: number, parcelSqft?: number): CensusReport {
   // Count by species
   const speciesCounts = new Map<string, { count: number; label: string; category: string }>();
 
@@ -231,6 +235,8 @@ export function generateCensusReport(observations: Observation[], scanDurationMi
     layers,
     layerCompleteness: presentLayers,
     wildlifeSpeciesEstimate,
+    floraDensity: parcelSqft ? Math.round((totalPlants / parcelSqft) * 43560) : null, // plants per acre
+    speciesDensity: parcelSqft ? Math.round((totalSpecies / parcelSqft) * 43560) : null,
     recommendations,
     summaryProse,
     layerProse,

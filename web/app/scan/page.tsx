@@ -115,6 +115,32 @@ async function captureFrameFromVideo(video: HTMLVideoElement): Promise<Blob | nu
   });
 }
 
+/**
+ * Measure average brightness from a video frame (0-255).
+ * Samples every 20th pixel for performance.
+ * Returns brightness 0-255 and a human label.
+ */
+function measureBrightness(video: HTMLVideoElement): { value: number; label: string; color: string } {
+  const canvas = document.createElement("canvas");
+  canvas.width = 160; // small for speed
+  canvas.height = 120;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { value: 0, label: "Unknown", color: "text-zinc-500" };
+  ctx.drawImage(video, 0, 0, 160, 120);
+  const data = ctx.getImageData(0, 0, 160, 120).data;
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < data.length; i += 80) { // sample every 20th pixel (4 channels × 20)
+    sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+    count++;
+  }
+  const avg = Math.round(sum / count);
+  if (avg > 180) return { value: avg, label: "Full Sun", color: "text-yellow-300" };
+  if (avg > 120) return { value: avg, label: "Part Sun", color: "text-lime-300" };
+  if (avg > 70) return { value: avg, label: "Part Shade", color: "text-green-400" };
+  return { value: avg, label: "Full Shade", color: "text-blue-300" };
+}
+
 function elapsed(startTime: number): string {
   const s = Math.floor((Date.now() - startTime) / 1000);
   const m = Math.floor(s / 60);
@@ -149,6 +175,8 @@ export default function ScanPage() {
   const [correctionText, setCorrectionText] = useState("");
   const [classifying, setClassifying] = useState(false);
   const [elapsedStr, setElapsedStr] = useState("0:00");
+  const [lightLabel, setLightLabel] = useState("");
+  const [lightColor, setLightColor] = useState("text-zinc-500");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -369,6 +397,11 @@ export default function ScanPage() {
 
       const coords = await getGps() || initialCoords;
 
+      // Measure light conditions from current frame
+      const light = measureBrightness(videoRef.current);
+      setLightLabel(light.label);
+      setLightColor(light.color);
+
       // Upload frame to session (fast, ~0.5s)
       const fd = new FormData();
       fd.append("file", blob, `frame_${Date.now()}.jpg`);
@@ -379,6 +412,8 @@ export default function ScanPage() {
       if (headingRef.current != null) {
         fd.append("compass_heading", String(headingRef.current));
       }
+      // Include light measurement as notes metadata
+      fd.append("notes", `light:${light.value}:${light.label}`);
 
       apiFetch(tokenRef.current, `${API}/observation_sessions/${sessionId}/frames`, {
         method: "POST",
@@ -686,6 +721,22 @@ export default function ScanPage() {
               </div>
             </div>
           </div>
+
+          {/* Light indicator */}
+          {lightLabel && (
+            <div className="px-4 mt-1">
+              <div className="flex items-center justify-center">
+                <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    lightLabel === "Full Sun" ? "bg-yellow-300" :
+                    lightLabel === "Part Sun" ? "bg-lime-300" :
+                    lightLabel === "Part Shade" ? "bg-green-400" : "bg-blue-400"
+                  }`} />
+                  <span className={`text-xs font-medium ${lightColor}`}>{lightLabel}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* AI label overlay — floats in center with confirm/correct buttons */}
           <div className="flex-1 flex items-center justify-center pointer-events-auto">
