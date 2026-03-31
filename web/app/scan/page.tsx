@@ -803,22 +803,51 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* ── DONE STATE — Score Summary ──────────────────────────────────────── */}
-      {status === "done" && (
+      {/* ── DONE STATE — Census Report ──────────────────────────────────────── */}
+      {status === "done" && (() => {
+        const censusObs = observations.map(o => ({
+          species: o.species,
+          label: o.label,
+          category: o.category,
+          confidence: o.confidence,
+          lat: o.lat,
+          lng: o.lng,
+        }));
+        const durationMin = state.startTime ? Math.round((Date.now() - state.startTime) / 60000) : undefined;
+
+        // Dynamic import would be cleaner but for immediate use:
+        const { generateCensusReport } = require("@/lib/census-report");
+        const report = generateCensusReport(censusObs, durationMin);
+
+        const statusEmoji: Record<string, string> = { strong: "✓", moderate: "○", weak: "△", absent: "✗" };
+        const statusColor: Record<string, string> = { strong: "text-lime-300", moderate: "text-yellow-300", weak: "text-orange-400", absent: "text-red-400" };
+
+        return (
         <div className="flex-1 flex flex-col bg-[#07110c] overflow-y-auto">
           <div className="px-5 pt-14 pb-8">
             {/* Header */}
-            <div className="text-center mb-8">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Scan Complete</p>
-              <p className="text-sm text-zinc-400 mt-1">{elapsedStr} · {frameCount} frames</p>
+            <div className="text-center mb-6">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Property Ecological Census</p>
+              <p className="text-sm text-zinc-400 mt-1">{elapsedStr} · {frameCount} frames · {observations.length} identified</p>
             </div>
 
-            {/* Score card */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-6">
-              <div className="text-center mb-4">
-                <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2">YardScore</p>
-                <p className="text-5xl font-bold text-white">{score}</p>
-                <p className="text-sm text-zinc-400 mt-1">{scoreRating(score)}</p>
+            {/* Score + headline stats */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs text-zinc-400 uppercase tracking-widest mb-1">YardScore</p>
+                  <p className="text-4xl font-bold text-white">{score}</p>
+                  <p className="text-xs text-zinc-400">{scoreRating(score)}</p>
+                </div>
+                <div className="text-right space-y-1">
+                  <p className="text-xs text-zinc-400">{report.totalSpecies} species</p>
+                  <p className={`text-sm font-bold ${report.nativePercent >= 80 ? "text-lime-300" : report.nativePercent >= 50 ? "text-yellow-300" : "text-red-400"}`}>
+                    {report.nativePercent}% native
+                  </p>
+                  {report.invasiveCount > 0 && (
+                    <p className="text-xs text-red-400">{report.invasiveCount} invasive</p>
+                  )}
+                </div>
               </div>
               <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
                 <div
@@ -828,87 +857,140 @@ export default function ScanPage() {
               </div>
             </div>
 
-            {/* Observation breakdown */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 mb-6">
-              <h3 className="text-sm font-semibold text-white mb-4">Observations</h3>
+            {/* Census prose summary */}
+            <div className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-4 mb-4">
+              <p className="text-sm text-zinc-200 leading-relaxed">{report.summaryProse}</p>
+            </div>
 
-              {liveCounts.trees > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-zinc-300">🌳 Trees</span>
-                    <span className="text-sm font-bold text-white">{liveCounts.trees}</span>
+            {/* Wildlife estimate */}
+            {report.wildlifeSpeciesEstimate > 0 && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4 text-center">
+                <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Wildlife Supported</p>
+                <p className="text-3xl font-bold text-lime-300">{report.wildlifeSpeciesEstimate}</p>
+                <p className="text-xs text-zinc-400 mt-1">moth & butterfly species hosted by your native plants</p>
+              </div>
+            )}
+
+            {/* Layer analysis */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-white">Ecosystem Layers</h3>
+                <span className="text-xs text-zinc-500">{report.layerCompleteness}/4 present</span>
+              </div>
+              {(["canopy", "understory", "shrub", "ground_cover"] as const).map((layer) => {
+                const l = report.layers[layer];
+                const names = { canopy: "Canopy", understory: "Understory", shrub: "Shrub", ground_cover: "Ground Cover" };
+                return (
+                  <div key={layer} className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm ${statusColor[l.status]}`}>{statusEmoji[l.status]}</span>
+                      <span className="text-sm text-zinc-300">{names[layer]}</span>
+                    </div>
+                    <span className="text-xs text-zinc-500">
+                      {l.count} plants · {l.species} species · {l.status}
+                    </span>
                   </div>
-                  {/* Species breakdown */}
-                  {(() => {
-                    const treeObs = observations.filter(o => o.category === "tree");
-                    const byLabel = new Map<string, number>();
-                    treeObs.forEach(o => byLabel.set(o.label, (byLabel.get(o.label) || 0) + 1));
-                    return Array.from(byLabel.entries()).map(([label, count]) => (
-                      <div key={label} className="flex items-center justify-between pl-6 py-0.5">
-                        <span className="text-xs text-zinc-400">{label}</span>
-                        <span className="text-xs text-zinc-500">{count}</span>
+                );
+              })}
+            </div>
+
+            {/* Species list with native/invasive badges */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
+              <h3 className="text-sm font-semibold text-white mb-3">Species Census</h3>
+
+              {/* Invasives first (if any) */}
+              {report.invasiveList.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] text-red-400 uppercase tracking-widest mb-1.5">Invasive — Remove</p>
+                  {report.invasiveList.map((s: any) => (
+                    <div key={s.scientificName} className="flex items-center justify-between py-1 pl-2 border-l-2 border-red-500/50">
+                      <div>
+                        <span className="text-xs text-red-300">{s.commonName}</span>
+                        <span className="text-[10px] text-red-400/60 ml-1 italic">{s.scientificName}</span>
                       </div>
-                    ));
-                  })()}
+                      <span className="text-xs text-red-400 font-bold">×{s.count}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {liveCounts.shrubs > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-zinc-300">🌿 Shrubs</span>
-                    <span className="text-sm font-bold text-white">{liveCounts.shrubs}</span>
-                  </div>
-                  {(() => {
-                    const shrubObs = observations.filter(o => o.category === "shrub");
-                    const byLabel = new Map<string, number>();
-                    shrubObs.forEach(o => byLabel.set(o.label, (byLabel.get(o.label) || 0) + 1));
-                    return Array.from(byLabel.entries()).map(([label, count]) => (
-                      <div key={label} className="flex items-center justify-between pl-6 py-0.5">
-                        <span className="text-xs text-zinc-400">{label}</span>
-                        <span className="text-xs text-zinc-500">{count}</span>
+              {/* Natives */}
+              {report.nativeList.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] text-lime-400 uppercase tracking-widest mb-1.5">Native</p>
+                  {report.nativeList.map((s: any) => (
+                    <div key={s.scientificName} className="flex items-center justify-between py-1 pl-2 border-l-2 border-lime-500/30">
+                      <div>
+                        <span className="text-xs text-zinc-300">{s.commonName}</span>
+                        <span className="text-[10px] text-zinc-500 ml-1 italic">{s.scientificName}</span>
+                        {s.wildlifeValue > 50 && <span className="text-[9px] text-lime-400 ml-1">★ keystone</span>}
                       </div>
-                    ));
-                  })()}
+                      <span className="text-xs text-zinc-400">×{s.count}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {liveCounts.herbs > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-zinc-300">🌱 Herbs</span>
-                  <span className="text-sm font-bold text-white">{liveCounts.herbs}</span>
-                </div>
-              )}
-
-              {liveCounts.ground_cover > 0 && (
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm text-zinc-300">🍂 Ground Cover</span>
-                  <span className="text-sm font-bold text-white">{liveCounts.ground_cover}</span>
+              {/* Unknown/ornamental */}
+              {report.speciesList.filter((s: any) => s.status === "ornamental" || s.status === "unknown").length > 0 && (
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">Other / Unclassified</p>
+                  {report.speciesList.filter((s: any) => s.status === "ornamental" || s.status === "unknown").map((s: any) => (
+                    <div key={s.scientificName} className="flex items-center justify-between py-1 pl-2 border-l-2 border-zinc-700">
+                      <div>
+                        <span className="text-xs text-zinc-400">{s.commonName}</span>
+                        <span className="text-[10px] text-zinc-600 ml-1 italic">{s.scientificName}</span>
+                      </div>
+                      <span className="text-xs text-zinc-500">×{s.count}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
+            {/* Recommendations */}
+            {report.recommendations.length > 0 && (
+              <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-4 mb-4">
+                <h3 className="text-sm font-semibold text-white mb-3">Recommendations</h3>
+                {report.recommendations.map((rec: any, i: number) => (
+                  <div key={i} className="mb-3 last:mb-0">
+                    <div className="flex items-start gap-2">
+                      <span className={`text-xs mt-0.5 ${rec.priority === "high" ? "text-red-400" : rec.priority === "medium" ? "text-yellow-400" : "text-zinc-400"}`}>
+                        {rec.priority === "high" ? "▲" : rec.priority === "medium" ? "●" : "○"}
+                      </span>
+                      <div>
+                        <p className="text-xs text-zinc-200">{rec.action}</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">{rec.reason}</p>
+                        {rec.species_suggestions && (
+                          <p className="text-[10px] text-lime-400 mt-1">
+                            Try: {rec.species_suggestions.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Scan stats */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 mb-6">
-              <h3 className="text-sm font-semibold text-white mb-3">Scan Stats</h3>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
-                  <p className="text-xs text-zinc-500">Frames</p>
                   <p className="text-lg font-bold text-white">{frameCount}</p>
+                  <p className="text-[10px] text-zinc-500">Frames</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Observations</p>
                   <p className="text-lg font-bold text-white">{observations.length}</p>
+                  <p className="text-[10px] text-zinc-500">Identified</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Duration</p>
+                  <p className="text-lg font-bold text-white">{report.totalSpecies}</p>
+                  <p className="text-[10px] text-zinc-500">Species</p>
+                </div>
+                <div>
                   <p className="text-lg font-bold text-white">{elapsedStr}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Species Found</p>
-                  <p className="text-lg font-bold text-white">
-                    {new Set(observations.filter(o => o.species).map(o => o.species)).size}
-                  </p>
+                  <p className="text-[10px] text-zinc-500">Duration</p>
                 </div>
               </div>
             </div>
@@ -934,9 +1016,15 @@ export default function ScanPage() {
                 Scan Again
               </button>
             </div>
+
+            {/* Attribution */}
+            <p className="text-center text-[9px] text-zinc-700 mt-6">
+              Powered by Pl@ntNet · Wildlife data from Doug Tallamy&apos;s research
+            </p>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── ERROR STATE ─────────────────────────────────────────────────────── */}
       {status === "error" && (
