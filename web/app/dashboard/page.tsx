@@ -33,10 +33,19 @@ interface SessionSummary {
   created_at: string;
 }
 
+interface EntitySummary {
+  id: string;
+  entity_type: string;
+  label: string;
+  species: string | null;
+  observation_count: number;
+}
+
 interface PlaceWithData {
   place: LandUnit;
   score: LatestScore | null;
   entityCount: number;
+  entities: EntitySummary[];
   hasParcel: boolean;
   sessions: SessionSummary[];
   loading: boolean;
@@ -106,9 +115,17 @@ function ScoreBadge({ score, size = "md" }: { score: LatestScore | null | "loadi
 // ── Property card ─────────────────────────────────────────────────────────────
 
 function PropertyCard({ item }: { item: PlaceWithData }) {
-  const { place, score, entityCount, hasParcel, sessions, loading } = item;
+  const { place, score, entityCount, entities, hasParcel, sessions, loading } = item;
   const [expanded, setExpanded] = useState(false);
   const v = score ? Math.round(score.score_value) : null;
+
+  // Census analysis from entities
+  const { lookupSpecies, estimateWildlifeSpecies } = require("@/lib/piedmont-nc-species");
+  const nativeEntities = entities.filter((e: any) => { const info = lookupSpecies(e.species || e.label); return info?.status === "native"; });
+  const invasiveEntities = entities.filter((e: any) => { const info = lookupSpecies(e.species || e.label); return info?.status === "invasive"; });
+  const nativePct = entityCount > 0 ? Math.round((nativeEntities.length / entityCount) * 100) : 0;
+  const uniqueSpecies = new Set(entities.map((e: any) => e.species || e.label)).size;
+  const wildlifeEst = estimateWildlifeSpecies(entities.filter((e: any) => e.species).map((e: any) => e.species));
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-white/20 transition-colors">
@@ -142,30 +159,86 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
 
       {expanded && (
         <div className="border-t border-white/5 px-5 py-4 space-y-4">
+          {/* Quick actions */}
           <div className="flex gap-2">
             <a href="/scan" className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">Scan</a>
             <a href="/map" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Map</a>
-            <a href={`/capture?place=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Upload</a>
-            <a href={`/identify`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Identify</a>
+            <a href={`/report?id=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Report</a>
           </div>
 
-          {sessions.length > 0 ? (
+          {/* Census summary */}
+          {entityCount > 0 && (
+            <div className="space-y-3">
+              {/* Key stats row */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-center">
+                  <p className="text-lg font-bold text-white">{uniqueSpecies}</p>
+                  <p className="text-[10px] text-zinc-500">Species</p>
+                </div>
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-center">
+                  <p className={`text-lg font-bold ${nativePct >= 80 ? "text-lime-300" : nativePct >= 50 ? "text-yellow-300" : "text-red-400"}`}>{nativePct}%</p>
+                  <p className="text-[10px] text-zinc-500">Native</p>
+                </div>
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-center">
+                  <p className="text-lg font-bold text-lime-300">{wildlifeEst}</p>
+                  <p className="text-[10px] text-zinc-500">Wildlife spp.</p>
+                </div>
+              </div>
+
+              {/* Invasive alert */}
+              {invasiveEntities.length > 0 && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
+                  <p className="text-[10px] text-red-400 uppercase tracking-wider mb-1">Invasive — Remove</p>
+                  {invasiveEntities.map((e: any) => (
+                    <p key={e.id} className="text-xs text-red-300">{e.label || e.species} <span className="text-red-400/50">×{e.observation_count}</span></p>
+                  ))}
+                </div>
+              )}
+
+              {/* Top native species */}
+              <div>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Top Species</p>
+                {entities.slice(0, 6).map((e: any) => {
+                  const info = lookupSpecies(e.species || e.label);
+                  return (
+                    <div key={e.id} className="flex items-center justify-between py-0.5">
+                      <div className="flex items-center gap-1.5">
+                        {info?.status === "native" && <span className="text-lime-400 text-[10px]">●</span>}
+                        {info?.status === "invasive" && <span className="text-red-400 text-[10px]">●</span>}
+                        {!info && <span className="text-zinc-600 text-[10px]">●</span>}
+                        <span className="text-xs text-zinc-300">{e.label || e.species}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-600">×{e.observation_count}</span>
+                    </div>
+                  );
+                })}
+                {entities.length > 6 && (
+                  <p className="text-[10px] text-zinc-600 mt-1">+ {entities.length - 6} more species</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Recent scans */}
+          {sessions.length > 0 && (
             <div>
-              <p className="text-xs text-zinc-500 mb-2">Recent scans</p>
-              <div className="space-y-1.5">
-                {sessions.slice(0, 5).map((s) => (
-                  <div key={s.id} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Recent Scans</p>
+              <div className="space-y-1">
+                {sessions.slice(0, 3).map((s) => (
+                  <div key={s.id} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-1.5">
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${s.status === "closed" ? "bg-lime-400" : s.status === "open" ? "bg-yellow-400" : "bg-zinc-500"}`} />
                       <span className="text-xs text-zinc-300">{s.capture_mode || "scan"}</span>
                     </div>
-                    <span className="text-xs text-zinc-500">{timeAgo(s.created_at)}</span>
+                    <span className="text-[10px] text-zinc-500">{timeAgo(s.created_at)}</span>
                   </div>
                 ))}
               </div>
             </div>
-          ) : (
-            <p className="text-xs text-zinc-500 text-center py-2">No scans yet — go outside and scan this property.</p>
+          )}
+
+          {entityCount === 0 && (
+            <p className="text-xs text-zinc-500 text-center py-2">No plants identified yet — start a scan to build your census.</p>
           )}
 
           <div className="flex items-center justify-between text-[10px] text-zinc-600">
@@ -266,7 +339,7 @@ export default function Dashboard() {
       const units: LandUnit[] = await res.json();
 
       setPlaces(units.map((p) => ({
-        place: p, score: null, entityCount: 0, hasParcel: false, sessions: [], loading: true,
+        place: p, score: null, entityCount: 0, entities: [], hasParcel: false, sessions: [], loading: true,
       })));
       setLoading(false);
 
@@ -279,16 +352,18 @@ export default function Dashboard() {
               apiFetch(token, `${API}/parcels?land_unit_id=${p.id}`),
               apiFetch(token, `${API}/observation_sessions?land_unit_id=${p.id}`),
             ]);
+            const entList = er.ok ? await er.json() : [];
             return {
               place: p,
               score: sr.ok ? await sr.json() : null,
-              entityCount: er.ok ? (await er.json()).length : 0,
+              entityCount: entList.length,
+              entities: entList,
               hasParcel: pr.ok ? (await pr.json()).length > 0 : false,
               sessions: sesr.ok ? await sesr.json() : [],
               loading: false,
             };
           } catch {
-            return { place: p, score: null, entityCount: 0, hasParcel: false, sessions: [], loading: false };
+            return { place: p, score: null, entityCount: 0, entities: [], hasParcel: false, sessions: [], loading: false };
           }
         })
       );
