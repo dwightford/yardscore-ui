@@ -26,7 +26,7 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
-import NavBar from "../components/NavBar";
+// NavBar replaced with inline dark nav
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -61,15 +61,15 @@ type Status = "idle" | "uploading" | "scoring" | "done" | "error";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function scoreColor(v: number): string {
-  if (v >= 75) return "text-green-700";
-  if (v >= 50) return "text-yellow-700";
-  return "text-red-700";
+  if (v >= 75) return "text-lime-300";
+  if (v >= 50) return "text-yellow-300";
+  return "text-red-400";
 }
 
 function scoreBg(v: number): string {
-  if (v >= 75) return "bg-green-50 border-green-200";
-  if (v >= 50) return "bg-yellow-50 border-yellow-200";
-  return "bg-red-50 border-red-200";
+  if (v >= 75) return "bg-lime-300/10 border-lime-300/20";
+  if (v >= 50) return "bg-yellow-500/10 border-yellow-500/20";
+  return "bg-red-500/10 border-red-500/20";
 }
 
 // Poll /yardscore/.../latest until a score run is available or timeout.
@@ -325,13 +325,30 @@ export default function CapturePage() {
   const canCapture = status === "idle";
 
   return (
-    <div className="min-h-screen bg-[#f0f7f4] flex flex-col">
-      <NavBar active="/capture" />
+    <div className="min-h-screen bg-[#07110c] flex flex-col">
+      {/* Nav */}
+      <nav className="flex-none border-b border-white/5 bg-[#07110c]">
+        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+          <a href="/dashboard" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
+              </svg>
+            </div>
+            <span className="text-sm font-semibold text-white">YardScore</span>
+          </a>
+          <div className="flex items-center gap-6 text-xs text-zinc-400">
+            <a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a>
+            <a href="/map" className="hover:text-white transition-colors">Map</a>
+            <a href="/scan" className="hover:text-white transition-colors">Scan →</a>
+          </div>
+        </div>
+      </nav>
 
       <div className="flex-1 flex flex-col px-4 py-4 max-w-md mx-auto w-full gap-4">
         {/* Place selector chips */}
         <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
             Scoring for
           </p>
           <div className="flex flex-wrap gap-2">
@@ -341,8 +358,8 @@ export default function CapturePage() {
                 onClick={() => { setSelectedPlace(p); setShowNewPlaceInput(false); }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                   selectedPlace?.id === p.id
-                    ? "bg-[#2d6a4f] text-white border-[#2d6a4f]"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-[#2d6a4f]"
+                    ? "bg-lime-300 text-zinc-950 border-lime-300"
+                    : "bg-white/5 text-zinc-300 border-white/10 hover:border-lime-300/50"
                 }`}
               >
                 {p.name}
@@ -353,7 +370,7 @@ export default function CapturePage() {
             {!showNewPlaceInput && (
               <button
                 onClick={() => setShowNewPlaceInput(true)}
-                className="px-3 py-1.5 rounded-full text-sm font-medium border border-dashed border-gray-400 text-gray-500 hover:border-[#2d6a4f] hover:text-[#2d6a4f] transition-colors"
+                className="px-3 py-1.5 rounded-full text-sm font-medium border border-dashed border-zinc-600 text-zinc-500 hover:border-lime-300/50 hover:text-lime-300 transition-colors"
               >
                 + New…
               </button>
@@ -369,18 +386,18 @@ export default function CapturePage() {
                 onChange={(e) => setNewPlaceName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && createNewPlace()}
                 placeholder="e.g. Front yard"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]"
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-300/50"
               />
               <button
                 onClick={createNewPlace}
                 disabled={!newPlaceName.trim()}
-                className="bg-[#2d6a4f] disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg"
+                className="bg-lime-300 disabled:opacity-40 text-zinc-950 text-sm font-medium px-4 py-2 rounded-lg"
               >
                 Add
               </button>
               <button
                 onClick={() => { setShowNewPlaceInput(false); setNewPlaceName(""); }}
-                className="text-gray-400 text-sm px-2"
+                className="text-zinc-500 text-sm px-2"
               >
                 ✕
               </button>
@@ -422,8 +439,8 @@ export default function CapturePage() {
               aria-label="Take a photo"
               className={`w-32 h-32 rounded-full flex flex-col items-center justify-center gap-1 shadow-xl transition-all active:scale-95 ${
                 canCapture
-                  ? "bg-[#2d6a4f] hover:bg-[#1b4332] text-white"
-                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  ? "bg-lime-300 hover:bg-lime-200 text-zinc-950"
+                  : "bg-zinc-800 text-zinc-600 cursor-not-allowed"
               }`}
             >
               <span className="text-4xl">📷</span>
@@ -433,12 +450,12 @@ export default function CapturePage() {
 
           {/* No place selected — contextual hint */}
           {!selectedPlace && places.length > 0 && status === "idle" && (
-            <p className="text-sm text-gray-500 text-center">
+            <p className="text-sm text-zinc-500 text-center">
               {hasGps ? "📍 Place will be auto-detected from GPS." : "Select a place above to start."}
             </p>
           )}
           {!selectedPlace && places.length === 0 && status === "idle" && (
-            <p className="text-sm text-gray-500 text-center">
+            <p className="text-sm text-zinc-500 text-center">
               {hasGps
                 ? "📍 GPS detected. Tap to score — your place will be created automatically."
                 : "Create a place above, then tap to score."}
@@ -447,7 +464,7 @@ export default function CapturePage() {
 
           {/* Error */}
           {errorMsg && (
-            <div className="w-full max-w-sm rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700 text-center">
+            <div className="w-full max-w-sm rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-300 text-center">
               {errorMsg}
             </div>
           )}
@@ -455,11 +472,11 @@ export default function CapturePage() {
 
         {/* Plant identification result */}
         {plantId && (
-          <section className="rounded-2xl border border-green-200 bg-green-50 p-4 shadow-sm">
-            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Plant Identified</p>
-            <p className="text-xl font-bold text-green-900 italic mt-1">{plantId.scientificName}</p>
-            {plantId.commonName && <p className="text-sm text-green-800">{plantId.commonName}</p>}
-            <p className="text-xs text-green-600 mt-1">
+          <section className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-4">
+            <p className="text-[10px] text-lime-400 uppercase tracking-widest">Plant Identified</p>
+            <p className="text-xl font-bold text-lime-300 italic mt-1">{plantId.scientificName}</p>
+            {plantId.commonName && <p className="text-sm text-zinc-300">{plantId.commonName}</p>}
+            <p className="text-xs text-zinc-500 mt-1">
               {plantId.family} · {(plantId.confidence * 100).toFixed(0)}% confidence
             </p>
           </section>
@@ -472,20 +489,20 @@ export default function CapturePage() {
           >
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
                   YardScore
                 </p>
                 <p className={`text-5xl font-black leading-none ${scoreColor(score.score_value)}`}>
                   {Math.round(score.score_value)}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-zinc-500 mt-0.5">
                   Coverage {(score.coverage * 100).toFixed(0)}% · Confidence{" "}
                   {(score.confidence * 100).toFixed(0)}%
                 </p>
               </div>
               <button
                 onClick={reset}
-                className="text-sm bg-white border border-gray-300 hover:border-[#2d6a4f] text-gray-700 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-sm bg-white/10 border border-white/10 text-zinc-300 px-3 py-1.5 rounded-lg transition-colors"
               >
                 Score another
               </button>
@@ -493,8 +510,8 @@ export default function CapturePage() {
 
             {score.positives.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-green-700 mb-1">What&apos;s working</p>
-                <ul className="text-sm text-gray-700 space-y-0.5">
+                <p className="text-xs font-semibold text-lime-400 mb-1">What&apos;s working</p>
+                <ul className="text-sm text-zinc-300 space-y-0.5">
                   {score.positives.map((p, i) => (
                     <li key={i}>✓ {p}</li>
                   ))}
@@ -504,8 +521,8 @@ export default function CapturePage() {
 
             {score.negatives.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-red-700 mb-1">To improve</p>
-                <ul className="text-sm text-gray-700 space-y-0.5">
+                <p className="text-xs font-semibold text-red-400 mb-1">To improve</p>
+                <ul className="text-sm text-zinc-300 space-y-0.5">
                   {score.negatives.map((n, i) => (
                     <li key={i}>✗ {n}</li>
                   ))}
@@ -515,8 +532,8 @@ export default function CapturePage() {
 
             {score.recommendations.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-[#2d6a4f] mb-1">Next steps</p>
-                <ul className="text-sm text-gray-700 space-y-0.5">
+                <p className="text-xs font-semibold text-lime-400 mb-1">Next steps</p>
+                <ul className="text-sm text-zinc-300 space-y-0.5">
                   {score.recommendations.map((r, i) => (
                     <li key={i}>→ {r}</li>
                   ))}

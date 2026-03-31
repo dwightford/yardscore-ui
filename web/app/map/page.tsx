@@ -235,37 +235,52 @@ export default function MapPage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-screen flex flex-col bg-[#f8f4ef]">
-      <NavBar active="/map" />
-
-      {/* ── Place selector chips ────────────────────────────────────────────── */}
-      {places.length > 1 && (
-        <div className="flex-none bg-white border-b border-gray-200 px-4 py-3">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex flex-wrap gap-2">
-              {places.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setSelectedId(p.id)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                    selectedId === p.id
-                      ? "bg-[#2d6a4f] text-white border-[#2d6a4f]"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-[#2d6a4f]"
-                  }`}
-                >
-                  {p.name}
-                </button>
-              ))}
+    <div className="h-screen flex flex-col bg-[#07110c]">
+      {/* Nav */}
+      <nav className="flex-none border-b border-white/5 bg-[#07110c]">
+        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+          <a href="/dashboard" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
+              </svg>
             </div>
+            <span className="text-sm font-semibold text-white">YardScore</span>
+          </a>
+          <div className="flex items-center gap-6 text-xs text-zinc-400">
+            <a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a>
+            <a href="/map" className="text-lime-300 font-medium">Map</a>
+            <a href="/scan" className="hover:text-white transition-colors">Scan →</a>
+          </div>
+        </div>
+      </nav>
+
+      {/* Place selector chips */}
+      {places.length > 1 && (
+        <div className="flex-none border-b border-white/5 px-4 py-2">
+          <div className="flex flex-wrap gap-2">
+            {places.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedId(p.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  selectedId === p.id
+                    ? "bg-lime-300 text-zinc-950 border-lime-300"
+                    : "bg-white/5 text-zinc-300 border-white/10 hover:border-lime-300/50"
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ── Map area ────────────────────────────────────────────────────────── */}
+      {/* Map area */}
       <div className="flex-1 relative">
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-gray-400 text-sm">Loading...</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-[#07110c]">
+            <div className="w-10 h-10 border-4 border-lime-300 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : error ? (
           <div className="absolute inset-0 flex items-center justify-center px-4">
