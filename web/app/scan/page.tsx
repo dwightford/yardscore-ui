@@ -762,19 +762,22 @@ export default function ScanPage() {
             )}
           </div>
 
-          {/* Bottom: capture button + end scan */}
+          {/* Bottom: capture button + end scan — fixed thumb zone */}
           <div className="pointer-events-auto px-4 pb-8">
-            {/* Capture button */}
+            {/* Identify button — large, always reachable */}
             <div className="flex items-center justify-center mb-4">
               <button
                 onClick={manualCapture}
-                className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md border-4 border-white/60 flex items-center justify-center active:scale-90 transition-transform"
+                className="w-20 h-20 rounded-full bg-lime-300/90 backdrop-blur-md border-4 border-white/80 flex flex-col items-center justify-center active:scale-90 transition-transform shadow-xl shadow-lime-300/20"
               >
-                <div className="w-12 h-12 rounded-full bg-white" />
+                <svg className="w-8 h-8 text-zinc-900" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
+                </svg>
+                <span className="text-[8px] font-bold text-zinc-900 uppercase tracking-wider mt-0.5">ID</span>
               </button>
             </div>
 
-            {/* End scan */}
+            {/* End scan + stats */}
             <div className="flex items-center justify-between">
               <button
                 onClick={endScan}
@@ -783,8 +786,8 @@ export default function ScanPage() {
                 ■ End Scan
               </button>
               <div className="text-right">
-                <p className="text-white/60 text-xs">Score: {score}</p>
-                <p className="text-zinc-500 text-[10px]">{observations.length} observations</p>
+                <p className="text-white/60 text-xs">{observations.length} identified</p>
+                <p className="text-zinc-500 text-[10px]">{frameCount} frames</p>
               </div>
             </div>
           </div>

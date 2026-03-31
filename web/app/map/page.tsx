@@ -362,7 +362,7 @@ export default function MapPage() {
                       </div>
                       <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: "1px solid #e5e5e5" }}>
                         <a
-                          href={`/identify?entity=${entity.id}&name=${encodeURIComponent(entity.label)}`}
+                          href={`/plant?id=${entity.id}`}
                           style={{ background: "#2d6a4f", color: "white", padding: "6px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, textDecoration: "none", display: "inline-block" }}
                         >
                           {(entity as any).species ? "Add Observation" : "Identify Species"}
