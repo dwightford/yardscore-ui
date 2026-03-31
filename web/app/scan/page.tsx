@@ -1013,9 +1013,33 @@ export default function ScanPage() {
                         <p className="text-xs text-zinc-200">{rec.action}</p>
                         <p className="text-[10px] text-zinc-500 mt-0.5">{rec.reason}</p>
                         {rec.species_suggestions && (
-                          <p className="text-[10px] text-lime-400 mt-1">
-                            Try: {rec.species_suggestions.join(", ")}
-                          </p>
+                          <div className="mt-1.5 space-y-1">
+                            {rec.species_suggestions.map((sp: string, j: number) => {
+                              const name = sp.split(" (")[0]; // "Quercus alba (White Oak)" → "Quercus alba"
+                              const searchQuery = encodeURIComponent(name + " native plant");
+                              return (
+                                <div key={j} className="flex items-center gap-2">
+                                  <span className="text-[10px] text-lime-400">{sp}</span>
+                                  <a
+                                    href={`https://www.etsy.com/search?q=${searchQuery}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[9px] text-zinc-500 underline hover:text-lime-300"
+                                  >
+                                    Etsy
+                                  </a>
+                                  <a
+                                    href={`https://www.naturehills.com/search?q=${encodeURIComponent(name)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[9px] text-zinc-500 underline hover:text-lime-300"
+                                  >
+                                    Nature Hills
+                                  </a>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
                     </div>
