@@ -115,6 +115,25 @@ function geojsonToLatLngs(
   return [];
 }
 
+/** Create a colored circle divIcon for entity markers — supports drag */
+function makeEntityIcon(type: string) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const L = require("leaflet");
+  const size = entityRadius(type) * 2 + 4; // +4 for border
+  const color = entityColor(type);
+  return L.divIcon({
+    className: "",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `<div style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      background:${color};border:2px solid rgba(255,255,255,0.6);
+      box-shadow:0 1px 4px rgba(0,0,0,0.5);
+      cursor:grab;
+    "></div>`,
+  });
+}
+
 /** Update entity position via API after drag */
 async function updateEntityPosition(token: string | undefined, entityId: string, lat: number, lng: number) {
   try {
@@ -301,20 +320,29 @@ export default function MapPage() {
               );
             })}
 
-            {/* Entity markers — colored circles by type, tap for details */}
+            {/* Entity markers — colored circles, draggable, tap for details */}
             {entities.map((entity) => {
               if (entity.estimated_lat == null || entity.estimated_lng == null)
                 return null;
+              const icon = makeEntityIcon(entity.entity_type);
               return (
-                <CircleMarker
+                <Marker
                   key={entity.id}
-                  center={[entity.estimated_lat, entity.estimated_lng]}
-                  radius={entityRadius(entity.entity_type)}
-                  pathOptions={{
-                    color: entityColor(entity.entity_type),
-                    fillColor: entityColor(entity.entity_type),
-                    fillOpacity: 0.7,
-                    weight: 2,
+                  position={[entity.estimated_lat, entity.estimated_lng]}
+                  icon={icon}
+                  draggable={true}
+                  eventHandlers={{
+                    dragend: (e) => {
+                      const pos = e.target.getLatLng();
+                      setEntities((prev) =>
+                        prev.map((ent) =>
+                          ent.id === entity.id
+                            ? { ...ent, estimated_lat: pos.lat, estimated_lng: pos.lng }
+                            : ent
+                        )
+                      );
+                      updateEntityPosition(tokenRef.current, entity.id, pos.lat, pos.lng);
+                    },
                   }}
                 >
                   <Popup>
@@ -343,9 +371,12 @@ export default function MapPage() {
                           {(entity as any).species ? "Re-identify" : "Identify Species"}
                         </a>
                       </div>
+                      <p className="text-gray-300 text-[10px] mt-1">
+                        Drag to correct position
+                      </p>
                     </div>
                   </Popup>
-                </CircleMarker>
+                </Marker>
               );
             })}
           </MapContainer>

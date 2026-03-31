@@ -143,6 +143,10 @@ export default function ScanPage() {
 
   const [observations, setObservations] = useState<Observation[]>([]);
   const [latestLabel, setLatestLabel] = useState<string | null>(null);
+  const [latestSpecies, setLatestSpecies] = useState<string | null>(null);
+  const [latestEntityId, setLatestEntityId] = useState<string | null>(null);
+  const [showCorrection, setShowCorrection] = useState(false);
+  const [correctionText, setCorrectionText] = useState("");
   const [classifying, setClassifying] = useState(false);
   const [elapsedStr, setElapsedStr] = useState("0:00");
 
@@ -459,7 +463,12 @@ export default function ScanPage() {
                 size_class: null,
                 species,
               }),
-            }).catch(() => {}); // fire-and-forget
+            })
+              .then((r) => r.ok ? r.json() : null)
+              .then((data) => {
+                if (data?.entity?.id) setLatestEntityId(data.entity.id);
+              })
+              .catch(() => {});
           }
 
           setState((prev) => {
@@ -471,13 +480,23 @@ export default function ScanPage() {
             return { ...prev, liveCounts: counts };
           });
 
-          // Show label
+          // Show label with confirm/correct options
           const parts: string[] = [];
           parts.push(commonName || species);
           if (commonName && species !== commonName) parts.push(`\n${species}`);
           parts.push(`\n${family} · ${(score * 100).toFixed(0)}%`);
           setLatestLabel(parts.join(" "));
-          setTimeout(() => setLatestLabel(null), 6000);
+          setLatestSpecies(species);
+          setShowCorrection(false);
+          setCorrectionText("");
+          // Auto-dismiss after 10s (longer to allow correction)
+          setTimeout(() => {
+            setLatestLabel((current) => {
+              // Only auto-dismiss if user hasn't opened the correction flow
+              if (current === parts.join(" ")) return null;
+              return current;
+            });
+          }, 10000);
         }
       }
     } catch {
@@ -486,6 +505,43 @@ export default function ScanPage() {
       classifyingRef.current = false;
       setClassifying(false);
     }
+  }
+
+  // ── Correction handlers ─────────────────────────────────────────────────────
+
+  function confirmIdentification() {
+    setLatestLabel(null);
+    setLatestSpecies(null);
+    setShowCorrection(false);
+    if (navigator.vibrate) navigator.vibrate(30);
+  }
+
+  function submitCorrection() {
+    if (!correctionText.trim()) return;
+    // Store correction via feedback endpoint
+    apiFetch(tokenRef.current, `${API}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "wrong_id",
+        predicted_species: latestSpecies,
+        corrected_species: correctionText.trim(),
+        entity_id: latestEntityId,
+        land_unit_id: state.landUnitId,
+        context: {
+          lat: state.coords?.lat,
+          lng: state.coords?.lng,
+          heading: headingRef.current,
+          pitch: pitchRef.current,
+        },
+      }),
+    }).catch(() => {});
+
+    setLatestLabel(null);
+    setLatestSpecies(null);
+    setShowCorrection(false);
+    setCorrectionText("");
+    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
   }
 
   // ── Manual capture (tap) ────────────────────────────────────────────────────
@@ -631,18 +687,62 @@ export default function ScanPage() {
             </div>
           </div>
 
-          {/* AI label overlay — floats in center when classification returns */}
-          <div className="flex-1 flex items-center justify-center">
-            {latestLabel && (
-              <div className="bg-black/70 backdrop-blur-md rounded-2xl px-6 py-4 border border-lime-300/40 shadow-lg shadow-lime-300/10 mx-8">
+          {/* AI label overlay — floats in center with confirm/correct buttons */}
+          <div className="flex-1 flex items-center justify-center pointer-events-auto">
+            {latestLabel && !showCorrection && (
+              <div className="bg-black/70 backdrop-blur-md rounded-2xl px-6 py-4 border border-lime-300/40 shadow-lg shadow-lime-300/10 mx-8 max-w-xs">
                 <p className="text-lime-300 text-xl font-bold text-center whitespace-pre-line">{latestLabel}</p>
+                <div className="flex items-center justify-center gap-3 mt-3">
+                  <button
+                    onClick={confirmIdentification}
+                    className="flex items-center gap-1.5 bg-lime-300/20 border border-lime-300/40 text-lime-300 px-4 py-2 rounded-full text-xs font-semibold active:scale-95"
+                  >
+                    ✓ Correct
+                  </button>
+                  <button
+                    onClick={() => setShowCorrection(true)}
+                    className="flex items-center gap-1.5 bg-red-500/20 border border-red-500/40 text-red-300 px-4 py-2 rounded-full text-xs font-semibold active:scale-95"
+                  >
+                    ✗ Wrong
+                  </button>
+                </div>
+              </div>
+            )}
+            {latestLabel && showCorrection && (
+              <div className="bg-black/80 backdrop-blur-md rounded-2xl px-5 py-4 border border-red-500/40 shadow-lg mx-6 max-w-xs w-full">
+                <p className="text-red-300 text-xs font-semibold mb-1">Wrong ID — what is this plant?</p>
+                <p className="text-zinc-500 text-[10px] mb-2">PlantNet said: {latestSpecies}</p>
+                <input
+                  type="text"
+                  value={correctionText}
+                  onChange={(e) => setCorrectionText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submitCorrection()}
+                  placeholder="e.g. Red Maple, or just 'maple'"
+                  autoFocus
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-400/50"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={submitCorrection}
+                    disabled={!correctionText.trim()}
+                    className="flex-1 bg-red-500/30 border border-red-500/40 text-red-200 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-40 active:scale-95"
+                  >
+                    Submit Correction
+                  </button>
+                  <button
+                    onClick={() => { setShowCorrection(false); setLatestLabel(null); }}
+                    className="bg-white/10 text-zinc-400 px-3 py-2 rounded-lg text-xs active:scale-95"
+                  >
+                    Skip
+                  </button>
+                </div>
               </div>
             )}
             {!latestLabel && classifying && (
               <div className="bg-black/40 backdrop-blur-sm rounded-2xl px-5 py-3 border border-white/10">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 border-2 border-lime-300 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-zinc-300 text-sm">Identifying vegetation...</p>
+                  <p className="text-zinc-300 text-sm">Identifying...</p>
                 </div>
               </div>
             )}
