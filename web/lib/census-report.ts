@@ -70,10 +70,65 @@ export interface CensusReport {
   // Recommendations
   recommendations: Recommendation[];
 
+  // Census-derived score (replaces old color-ratio score)
+  censusScore: number; // 0-100
+
   // Prose
   summaryProse: string;
   layerProse: string;
   recommendationProse: string;
+}
+
+/**
+ * Compute YardScore (0-100) from census data.
+ *
+ * Scoring breakdown:
+ *   Native species ratio:    0-30 points  (the foundation)
+ *   Layer completeness:      0-20 points  (ecosystem structure)
+ *   Species diversity:       0-20 points  (biodiversity)
+ *   Keystone species:        0-15 points  (ecological anchors)
+ *   Invasive penalty:        0 to -15     (deduction)
+ *
+ * Total possible: 85 base + 15 keystone bonus = 100
+ */
+function computeCensusScore(
+  nativePercent: number,
+  layerCompleteness: number,
+  totalSpecies: number,
+  keystoneCount: number,
+  invasiveCount: number,
+  totalPlants: number,
+): number {
+  let score = 0;
+
+  // Native ratio: 0-30 points
+  // 100% native = 30, 70% = 21, 50% = 15, 0% = 0
+  score += Math.round(nativePercent * 0.3);
+
+  // Layer completeness: 0-20 points
+  // 4 layers = 20, 3 = 15, 2 = 10, 1 = 5, 0 = 0
+  score += layerCompleteness * 5;
+
+  // Species diversity: 0-20 points
+  // 20+ species = 20, 10 = 15, 5 = 10, 1 = 5
+  if (totalSpecies >= 20) score += 20;
+  else if (totalSpecies >= 10) score += 15;
+  else if (totalSpecies >= 5) score += 10;
+  else if (totalSpecies >= 1) score += 5;
+
+  // Keystone species: 0-15 points
+  // Each keystone genus (oaks, cherries, birches, etc.) = 3 points, max 15
+  score += Math.min(keystoneCount * 3, 15);
+
+  // Invasive penalty: -3 per invasive species, max -15
+  score -= Math.min(invasiveCount * 3, 15);
+
+  // Minimum observation threshold — need at least 5 plants for a meaningful score
+  if (totalPlants < 5) {
+    score = Math.round(score * (totalPlants / 5));
+  }
+
+  return Math.max(0, Math.min(100, score));
 }
 
 function layerStatus(count: number, species: number): "strong" | "moderate" | "weak" | "absent" {
@@ -215,6 +270,19 @@ export function generateCensusReport(observations: Observation[], scanDurationMi
     });
   }
 
+  // Keystone species count (wildlife_value > 100 = keystone genus)
+  const keystoneCount = nativeList.filter((s) => s.wildlifeValue > 100).length;
+
+  // Census-derived score
+  const censusScore = computeCensusScore(
+    nativePercent,
+    presentLayers,
+    totalSpecies,
+    keystoneCount,
+    invasiveList.length,
+    totalPlants,
+  );
+
   // Generate prose
   const summaryProse = generateSummaryProse(totalPlants, totalSpecies, nativePercent, invasiveCount, wildlifeSpeciesEstimate, scanDurationMin);
   const layerProse = generateLayerProse(layers, presentLayers);
@@ -235,6 +303,7 @@ export function generateCensusReport(observations: Observation[], scanDurationMi
     layers,
     layerCompleteness: presentLayers,
     wildlifeSpeciesEstimate,
+    censusScore,
     floraDensity: parcelSqft ? Math.round((totalPlants / parcelSqft) * 43560) : null, // plants per acre
     speciesDensity: parcelSqft ? Math.round((totalSpecies / parcelSqft) * 43560) : null,
     recommendations,

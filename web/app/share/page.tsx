@@ -31,6 +31,9 @@ interface PropertyData {
   entities: Entity[];
   score: { score_value: number; confidence: number; coverage: number } | null;
   entity_count: number;
+  light_summary: Record<string, number> | null;
+  light_readings: number;
+  lot_size_sqft: number | null;
 }
 
 function ShareContent() {
@@ -84,7 +87,8 @@ function ShareContent() {
     );
   }
 
-  const v = data.score ? Math.round(data.score.score_value) : null;
+  // Use census-derived score (preferred) or fall back to backend score
+  const v = report.censusScore > 0 ? report.censusScore : (data.score ? Math.round(data.score.score_value) : null);
 
   // Score ring color
   const ringColor = v !== null
@@ -155,6 +159,34 @@ function ShareContent() {
             <p className="text-xs text-zinc-500 mt-1">
               hosted by the native plants on this property
             </p>
+          </div>
+        )}
+
+        {/* ── Light Conditions ─────────────────────────────────────────────── */}
+        {data.light_summary && data.light_readings > 0 && (
+          <div className="mb-6">
+            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">Light Conditions</p>
+            <div className="flex gap-1 h-3 rounded-full overflow-hidden">
+              {data.light_summary["Full Sun"] > 0 && (
+                <div className="bg-yellow-300" style={{ width: `${data.light_summary["Full Sun"]}%` }} title={`Full Sun ${data.light_summary["Full Sun"]}%`} />
+              )}
+              {data.light_summary["Part Sun"] > 0 && (
+                <div className="bg-lime-400" style={{ width: `${data.light_summary["Part Sun"]}%` }} title={`Part Sun ${data.light_summary["Part Sun"]}%`} />
+              )}
+              {data.light_summary["Part Shade"] > 0 && (
+                <div className="bg-green-600" style={{ width: `${data.light_summary["Part Shade"]}%` }} title={`Part Shade ${data.light_summary["Part Shade"]}%`} />
+              )}
+              {data.light_summary["Full Shade"] > 0 && (
+                <div className="bg-blue-900" style={{ width: `${data.light_summary["Full Shade"]}%` }} title={`Full Shade ${data.light_summary["Full Shade"]}%`} />
+              )}
+            </div>
+            <div className="flex justify-between mt-2 text-[9px] text-zinc-600">
+              <span>☀️ Full Sun {data.light_summary["Full Sun"]}%</span>
+              <span>🌤 Part Sun {data.light_summary["Part Sun"]}%</span>
+              <span>🌿 Part Shade {data.light_summary["Part Shade"]}%</span>
+              <span>🌑 Shade {data.light_summary["Full Shade"]}%</span>
+            </div>
+            <p className="text-[9px] text-zinc-700 mt-1">{data.light_readings} readings across {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })} scans</p>
           </div>
         )}
 

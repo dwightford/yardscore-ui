@@ -122,7 +122,7 @@ function ReportContent() {
     );
   }
 
-  const v = score ? Math.round(score.score_value) : null;
+  const v = report.censusScore > 0 ? report.censusScore : (score ? Math.round(score.score_value) : null);
   const statusEmoji: Record<string, string> = { strong: "✓", moderate: "○", weak: "△", absent: "✗" };
   const statusColor: Record<string, string> = { strong: "text-lime-300", moderate: "text-yellow-300", weak: "text-orange-400", absent: "text-red-400" };
 

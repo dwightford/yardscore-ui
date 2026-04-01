@@ -964,8 +964,8 @@ export default function ScanPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-xs text-zinc-400 uppercase tracking-widest mb-1">YardScore</p>
-                  <p className="text-4xl font-bold text-white">{score}</p>
-                  <p className="text-xs text-zinc-400">{scoreRating(score)}</p>
+                  <p className="text-4xl font-bold text-white">{report.censusScore}</p>
+                  <p className="text-xs text-zinc-400">{scoreRating(report.censusScore)}</p>
                 </div>
                 <div className="text-right space-y-1">
                   <p className="text-xs text-zinc-400">{report.totalSpecies} species</p>
@@ -979,8 +979,8 @@ export default function ScanPage() {
               </div>
               <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-1000 ${scoreBarColor(score)}`}
-                  style={{ width: `${Math.min(score, 100)}%` }}
+                  className={`h-full rounded-full transition-all duration-1000 ${scoreBarColor(report.censusScore)}`}
+                  style={{ width: `${Math.min(report.censusScore, 100)}%` }}
                 />
               </div>
             </div>
