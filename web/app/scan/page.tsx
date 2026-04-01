@@ -173,6 +173,7 @@ export default function ScanPage() {
   const [latestEntityId, setLatestEntityId] = useState<string | null>(null);
   const [showCorrection, setShowCorrection] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
+  const [alternatives, setAlternatives] = useState<{ name: string; common: string; score: number }[]>([]);
   const [classifying, setClassifying] = useState(false);
   const [elapsedStr, setElapsedStr] = useState("0:00");
   const [lightLabel, setLightLabel] = useState("");
@@ -506,6 +507,15 @@ export default function ScanPage() {
         const data = await r.json();
         const plantResults = (data.results || []).slice(0, 5);
 
+        // Store alternatives for display
+        setAlternatives(
+          plantResults.slice(1, 4).map((pr: any) => ({
+            name: pr.species?.scientificNameWithoutAuthor || "Unknown",
+            common: pr.species?.commonNames?.[0] || "",
+            score: pr.score || 0,
+          }))
+        );
+
         if (plantResults.length > 0) {
           const best = plantResults[0];
           const species = best.species?.scientificNameWithoutAuthor || "Unknown";
@@ -795,6 +805,19 @@ export default function ScanPage() {
             {latestLabel && !showCorrection && (
               <div className="bg-black/70 backdrop-blur-md rounded-2xl px-6 py-4 border border-lime-300/40 shadow-lg shadow-lime-300/10 mx-8 max-w-xs">
                 <p className="text-lime-300 text-xl font-bold text-center whitespace-pre-line">{latestLabel}</p>
+
+                {/* Alternative IDs with confidence */}
+                {alternatives.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {alternatives.map((alt, i) => (
+                      <div key={i} className="flex items-center justify-between text-[10px]">
+                        <span className="text-zinc-400">{alt.common || alt.name}</span>
+                        <span className="text-zinc-500 font-mono">{(alt.score * 100).toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex items-center justify-center gap-3 mt-3">
                   <button
                     onClick={confirmIdentification}
@@ -893,14 +916,19 @@ export default function ScanPage() {
                   )}
                 </button>
 
-                {/* Submit now button appears during multi-shot collection */}
+                {/* Multi-shot hint + submit button */}
                 {shotCount > 0 && (
+                  <>
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
+                    <span className="text-[9px] text-zinc-300">Tap more: bark, leaves, flowers</span>
+                  </div>
                   <button
                     onClick={submitMultiShot}
                     className="absolute -right-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-lime-300 text-zinc-900 text-[10px] font-bold rounded-full active:scale-95"
                   >
                     ID Now
                   </button>
+                  </>
                 )}
               </div>
             </div>

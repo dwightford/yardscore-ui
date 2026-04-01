@@ -141,7 +141,7 @@ export default function FeedbackWidget() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full bg-[#2d6a4f] text-white shadow-lg flex items-center justify-center hover:bg-[#1b4332] active:scale-95 transition-all"
+          className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full bg-lime-300/20 border border-lime-300/30 text-lime-300 shadow-lg flex items-center justify-center hover:bg-lime-300/30 active:scale-95 transition-all"
           aria-label="Give feedback"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -150,15 +150,15 @@ export default function FeedbackWidget() {
         </button>
       )}
 
-      {/* Feedback panel */}
+      {/* Feedback panel — dark theme */}
       {open && (
-        <div className="fixed bottom-5 right-5 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        <div className="fixed bottom-5 right-5 z-50 w-80 bg-[#0d1712] rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
           {/* Header */}
-          <div className="bg-[#2d6a4f] px-4 py-3 flex items-center justify-between">
+          <div className="bg-lime-300/10 border-b border-white/10 px-4 py-3 flex items-center justify-between">
             <span className="text-white text-sm font-semibold">Send Feedback</span>
             <button
               onClick={() => { setOpen(false); setStatus("idle"); }}
-              className="text-white/70 hover:text-white text-lg leading-none"
+              className="text-zinc-400 hover:text-white text-lg leading-none"
             >
               &times;
             </button>
@@ -168,8 +168,8 @@ export default function FeedbackWidget() {
           <div className="p-4">
             {status === "sent" ? (
               <div className="text-center py-4">
-                <p className="text-[#2d6a4f] font-semibold">Thanks!</p>
-                <p className="text-gray-500 text-sm mt-1">Drew will see your feedback with full context.</p>
+                <p className="text-lime-300 font-semibold">Thanks for your feedback!</p>
+                <p className="text-zinc-400 text-sm mt-1">Every report, idea, and correction makes YardScore better for everyone.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -186,8 +186,8 @@ export default function FeedbackWidget() {
                       onClick={() => setFeedbackType(t.key)}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         feedbackType === t.key
-                          ? "bg-[#2d6a4f] text-white"
-                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          ? "bg-lime-300 text-zinc-950"
+                          : "bg-white/5 text-zinc-400 hover:bg-white/10"
                       }`}
                     >
                       {t.icon} {t.label}
@@ -206,13 +206,13 @@ export default function FeedbackWidget() {
                       : "What's working? What's not?"
                   }
                   rows={4}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-[#52b788] focus:ring-1 focus:ring-[#52b788]"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 resize-none focus:outline-none focus:border-lime-300/50"
                   autoFocus
                 />
 
                 {/* Auto-captured context preview */}
-                <div className="bg-gray-50 rounded-lg px-3 py-2 text-[10px] text-gray-400 space-y-0.5">
-                  <p className="font-medium text-gray-500">Auto-captured:</p>
+                <div className="bg-white/[0.03] rounded-lg px-3 py-2 text-[10px] text-zinc-600 space-y-0.5">
+                  <p className="font-medium text-zinc-500">Auto-captured:</p>
                   <p>📍 Page: {typeof window !== "undefined" ? window.location.pathname : ""}</p>
                   <p>📱 {typeof window !== "undefined" ? (
                     /iPhone|iPad/.test(navigator.userAgent) ? "iOS" :
@@ -225,12 +225,12 @@ export default function FeedbackWidget() {
                 </div>
 
                 {status === "error" && (
-                  <p className="text-red-500 text-xs">Failed to send. Try again.</p>
+                  <p className="text-red-400 text-xs">Failed to send. Try again.</p>
                 )}
                 <button
                   type="submit"
                   disabled={status === "sending" || !message.trim()}
-                  className="w-full py-2.5 bg-[#2d6a4f] hover:bg-[#1b4332] text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+                  className="w-full py-2.5 bg-lime-300 text-zinc-950 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 hover:bg-lime-200"
                 >
                   {status === "sending" ? "Sending..." : "Send Feedback"}
                 </button>
