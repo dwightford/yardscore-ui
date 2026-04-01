@@ -16,6 +16,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { lookupSpecies, estimateWildlifeSpecies } from "@/lib/piedmont-nc-species";
 import { generateCensusReport, type CensusReport } from "@/lib/census-report";
+import { findLocalNurseries } from "@/lib/local-nurseries";
 
 interface Entity {
   id: string;
@@ -239,15 +240,27 @@ function ShareContent() {
                         {alts.map((alt, i) => {
                           const name = alt.split(" (")[0];
                           return (
-                            <a
-                              key={i}
-                              href={`https://www.etsy.com/search?q=${encodeURIComponent(name + " native plant")}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block text-[10px] text-lime-400/60 hover:text-lime-300 transition-colors mt-0.5"
-                            >
-                              {alt} →
-                            </a>
+                            <div key={i} className="mt-0.5">
+                              <span className="text-[10px] text-lime-400/60">{alt}</span>
+                              <span className="text-[9px] text-zinc-600 ml-1">
+                                {(() => {
+                                  const altName = alt.split(" (")[0];
+                                  const local = findLocalNurseries(altName);
+                                  if (local.length > 0) {
+                                    return local.map((n, ni) => (
+                                      <a key={ni} href={n.url} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-lime-300 transition-colors">
+                                        {n.name}{ni < local.length - 1 ? ", " : ""}
+                                      </a>
+                                    ));
+                                  }
+                                  return (
+                                    <a href={`https://www.etsy.com/search?q=${encodeURIComponent(altName + " native plant")}`} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-lime-300">
+                                      Etsy
+                                    </a>
+                                  );
+                                })()}
+                              </span>
+                            </div>
                           );
                         })}
                       </div>
@@ -283,19 +296,27 @@ function ShareContent() {
                 <p className="text-xs text-zinc-300">{rec.action}</p>
                 <p className="text-[10px] text-zinc-600 mt-0.5">{rec.reason}</p>
                 {rec.species_suggestions && (
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                  <div className="mt-1.5 space-y-1">
                     {rec.species_suggestions.map((sp: string, j: number) => {
                       const name = sp.split(" (")[0];
+                      const local = findLocalNurseries(name);
                       return (
-                        <a
-                          key={j}
-                          href={`https://www.etsy.com/search?q=${encodeURIComponent(name + " native plant")}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[10px] text-lime-400/70 hover:text-lime-300 transition-colors"
-                        >
-                          {sp} →
-                        </a>
+                        <div key={j}>
+                          <span className="text-[10px] text-lime-400/70">{sp}</span>
+                          <span className="text-[9px] text-zinc-600 ml-1.5">
+                            {local.length > 0 ? (
+                              local.map((n, ni) => (
+                                <a key={ni} href={n.url} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-lime-300 transition-colors">
+                                  {n.name}{ni < local.length - 1 ? " · " : ""}
+                                </a>
+                              ))
+                            ) : (
+                              <a href={`https://www.etsy.com/search?q=${encodeURIComponent(name + " native plant")}`} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-lime-300">
+                                find online →
+                              </a>
+                            )}
+                          </span>
+                        </div>
                       );
                     })}
                   </div>
