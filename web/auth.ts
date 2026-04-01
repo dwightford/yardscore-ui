@@ -72,7 +72,7 @@ export const authConfig: NextAuthConfig = {
     },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isProtected = ["/dashboard", "/scan", "/capture", "/map", "/identify", "/debug", "/plant", "/admin", "/report"].some(
+      const isProtected = ["/dashboard", "/scan", "/capture", "/map", "/identify", "/debug", "/plant", "/admin", "/report", "/upgrade"].some(
         (r) => nextUrl.pathname === r || nextUrl.pathname.startsWith(r + "/")
       );
 
