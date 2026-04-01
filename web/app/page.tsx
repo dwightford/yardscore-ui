@@ -118,7 +118,8 @@ export default function LandingPage() {
             { title: "Wildlife Supported", desc: "Estimated moth and butterfly species hosted, based on Doug Tallamy's research." },
             { title: "Ecosystem Layers", desc: "Canopy, understory, shrub, and ground cover — how complete is your habitat?" },
             { title: "YardScore (0-100)", desc: "An ecological health rating based on native species, layer diversity, and composition." },
-            { title: "What to Plant Next", desc: "Species recommendations with links to local nurseries and online shops." },
+            { title: "Light Conditions", desc: "Real-time sun and shade measurement at every scan point. Over time, builds a light map of your yard." },
+            { title: "What to Plant Next", desc: "Species recommendations matched to your site conditions, with links to local nurseries." },
           ].map((item) => (
             <div key={item.title} className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
               <h3 className="text-sm font-semibold text-white">{item.title}</h3>
