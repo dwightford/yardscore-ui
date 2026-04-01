@@ -54,6 +54,20 @@ export const LOCAL_NURSERIES: LocalNursery[] = [
       "cornus", "cercis", "amelanchier",
     ],
   },
+  {
+    name: "Understory Natives",
+    location: "Hurdle Mills, NC",
+    url: "mailto:understorynatives@gmail.com",
+    distance_note: "Hurdle Mills",
+    genera: [
+      "packera", "polystichum", "asarum", "phlox", "carex",
+      "heuchera", "tiarella", "chrysogonum", "viola", "mertensia",
+      "podophyllum", "sanguinaria", "trillium", "arisaema",
+      "fothergilla", "calycanthus", "lindera", "viburnum",
+      "cornus", "cercis", "amelanchier", "hamamelis",
+      "asclepias", "echinacea", "monarda", "lobelia",
+    ],
+  },
 ];
 
 /**
