@@ -396,6 +396,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-6 text-xs text-zinc-400">
             <a href="/dashboard" className="text-lime-300 font-medium">Dashboard</a>
             <a href="/map" className="hover:text-white transition-colors">Map</a>
+            <a href="/upgrade" className="hover:text-lime-300 transition-colors">Pro</a>
             <a href="/scan" className="hover:text-white transition-colors">Scan →</a>
           </div>
         </div>

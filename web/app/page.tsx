@@ -29,6 +29,7 @@ export default function LandingPage() {
           <span className="text-lg font-semibold tracking-tight">YardScore</span>
         </div>
         <div className="flex items-center gap-4">
+          <a href="/upgrade" className="text-sm text-lime-300 hover:text-lime-200 transition-colors">Pricing</a>
           <a href="/login" className="text-sm text-zinc-400 hover:text-white transition-colors">Sign In</a>
           <a href="/login" className="rounded-full bg-lime-300 px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200">
             Scan Your Yard

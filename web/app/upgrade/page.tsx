@@ -184,10 +184,51 @@ export default function UpgradePage() {
             </div>
 
             {/* Free tier reminder */}
-            <p className="text-center text-[10px] text-zinc-600">
+            <p className="text-center text-[10px] text-zinc-600 mb-6">
               Free tier includes: scan, score, species census, map, share link.
               You never lose access to your data.
             </p>
+
+            {/* Professional tiers */}
+            <div className="border-t border-white/[0.06] pt-6">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-4 text-center">For Professionals</p>
+
+              <div className="space-y-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Grower</p>
+                    <p className="text-[10px] text-zinc-500">For propagators and small native plant growers</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-white">$9.99<span className="text-zinc-500 font-normal">/mo</span></p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Arborist</p>
+                    <p className="text-[10px] text-zinc-500">Multi-property assessments with professional reports</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-white">$19.99<span className="text-zinc-500 font-normal">/mo</span></p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Nursery</p>
+                    <p className="text-[10px] text-zinc-500">Inventory visibility, demand intelligence, featured listings</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-white">$50<span className="text-zinc-500 font-normal">/mo</span></p>
+                  </div>
+                </div>
+
+                <p className="text-center text-[10px] text-zinc-600 mt-2">
+                  Professional tiers coming soon. <a href="mailto:dwight@drewhenry.com" className="text-lime-400/70 hover:text-lime-300">Contact us</a> for early access.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
