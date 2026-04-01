@@ -874,8 +874,8 @@ export default function ScanPage() {
             )}
           </div>
 
-          {/* Counters — bottom corners */}
-          <div className="px-4 mb-2 flex items-end justify-between">
+          {/* Counters — above the fixed bottom controls */}
+          <div className="px-4 mb-36 flex items-end justify-between">
             <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-xl px-3 py-2">
               <span className="text-lime-300 text-lg">🌳</span>
               <span className="text-white text-xl font-bold">{liveCounts.trees}</span>
@@ -888,8 +888,8 @@ export default function ScanPage() {
             )}
           </div>
 
-          {/* Bottom: capture button + end scan — fixed thumb zone */}
-          <div className="pointer-events-auto px-4 pb-8">
+          {/* Bottom: capture button + end scan — FIXED to viewport bottom */}
+          <div className="pointer-events-auto fixed bottom-0 left-0 right-0 px-4 pb-8 pt-2 z-20" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
             {/* Identify button — large, always reachable. Shows shot count during multi-shot. */}
             <div className="flex items-center justify-center mb-4">
               <div className="relative">
