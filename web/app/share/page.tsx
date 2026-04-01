@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * /share?id=<land_unit_id> — Public shareable property census report
+ * /share?id=<land_unit_id> — Public property ecological census
  *
- * NO AUTH REQUIRED. Anyone with the link can view the census data.
- * Uses /public/report endpoint that returns read-only census data.
+ * NO AUTH. Anyone can view.
  *
- * This is what gets texted to friends, posted in garden clubs,
- * shared on social media. The growth engine.
+ * Design philosophy:
+ * - Nature documentary, not a lecture
+ * - Data as wonder, not judgment
+ * - Achievement, not grades
+ * - Let the numbers speak — no opinions
  */
 
 import { Suspense, useState, useEffect } from "react";
@@ -30,19 +32,6 @@ interface PropertyData {
   entity_count: number;
 }
 
-function scoreColor(v: number): string {
-  if (v >= 70) return "text-lime-300";
-  if (v >= 45) return "text-yellow-400";
-  return "text-red-400";
-}
-
-function scoreLabel(v: number): string {
-  if (v >= 80) return "Excellent";
-  if (v >= 60) return "Good";
-  if (v >= 40) return "Fair";
-  return "Needs Work";
-}
-
 function ShareContent() {
   const searchParams = useSearchParams();
   const landUnitId = searchParams.get("id");
@@ -53,7 +42,6 @@ function ShareContent() {
 
   useEffect(() => {
     if (!landUnitId) return;
-    // Use the backend API directly (public endpoint, no auth)
     fetch(`/api/public/report/${landUnitId}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
@@ -89,139 +77,255 @@ function ShareContent() {
   if (!data || !report) {
     return (
       <div className="min-h-screen bg-[#07110c] flex flex-col items-center justify-center gap-4 px-6">
-        <p className="text-zinc-400">Report not found or no census data yet.</p>
+        <p className="text-zinc-400">No census data available yet.</p>
         <a href="/" className="text-lime-300 text-sm">Learn about YardScore →</a>
       </div>
     );
   }
 
   const v = data.score ? Math.round(data.score.score_value) : null;
-  const statusEmoji: Record<string, string> = { strong: "✓", moderate: "○", weak: "△", absent: "✗" };
-  const statusColorMap: Record<string, string> = { strong: "text-lime-300", moderate: "text-yellow-300", weak: "text-orange-400", absent: "text-red-400" };
+
+  // Score ring color
+  const ringColor = v !== null
+    ? v >= 80 ? "border-lime-400" : v >= 60 ? "border-lime-300" : v >= 40 ? "border-yellow-400" : "border-red-400"
+    : "border-zinc-600";
+  const scoreText = v !== null
+    ? v >= 80 ? "text-lime-400" : v >= 60 ? "text-lime-300" : v >= 40 ? "text-yellow-400" : "text-red-400"
+    : "text-zinc-600";
+
+  const layerNames: Record<string, string> = { canopy: "Canopy", understory: "Understory", shrub: "Shrub", ground_cover: "Ground Cover" };
+  const layerEmoji: Record<string, string> = { strong: "●", moderate: "◐", weak: "○", absent: "·" };
+  const layerColor: Record<string, string> = { strong: "text-lime-400", moderate: "text-lime-300/60", weak: "text-zinc-500", absent: "text-zinc-700" };
 
   return (
     <div className="min-h-screen bg-[#07110c]">
-      <div className="max-w-lg mx-auto px-5 py-10">
-        {/* YardScore branding */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <div className="max-w-md mx-auto px-5 py-8">
+
+        {/* ── Header: YardScore branding ──────────────────────────────────── */}
+        <div className="flex items-center gap-2.5 mb-10">
+          <div className="w-8 h-8 rounded-lg bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
             </svg>
           </div>
-          <div>
-            <p className="text-lg font-bold text-white">YardScore</p>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Property Ecological Census</p>
-          </div>
+          <span className="text-sm font-semibold text-white tracking-tight">YardScore</span>
         </div>
 
-        {/* Property name */}
-        <div className="text-center mb-6">
+        {/* ── The Score ───────────────────────────────────────────────────── */}
+        <div className="text-center mb-10">
+          {v !== null && (
+            <div className={`inline-flex items-center justify-center w-28 h-28 rounded-full border-4 ${ringColor} mb-4`}>
+              <span className={`text-5xl font-bold ${scoreText}`}>{v}</span>
+            </div>
+          )}
           <h1 className="text-xl font-bold text-white">{data.property.name}</h1>
           {data.property.address && (
-            <p className="text-xs text-zinc-500 mt-1">{data.property.address.split(",").slice(0, 2).join(",")}</p>
+            <p className="text-xs text-zinc-500 mt-1.5">{data.property.address.split(",").slice(0, 2).join(",")}</p>
           )}
         </div>
 
-        {/* Score + headline */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              {v !== null && (
-                <>
-                  <p className="text-xs text-zinc-400 uppercase tracking-widest mb-1">YardScore</p>
-                  <p className={`text-5xl font-bold ${scoreColor(v)}`}>{v}</p>
-                  <p className="text-sm text-zinc-400">{scoreLabel(v)}</p>
-                </>
-              )}
-            </div>
-            <div className="text-right space-y-1">
-              <p className="text-2xl font-bold text-white">{report.totalSpecies}</p>
-              <p className="text-xs text-zinc-500">species</p>
-              <p className={`text-lg font-bold ${report.nativePercent >= 80 ? "text-lime-300" : report.nativePercent >= 50 ? "text-yellow-300" : "text-red-400"}`}>
-                {report.nativePercent}% native
-              </p>
-            </div>
+        {/* ── The Headline Numbers ────────────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-white">{report.totalSpecies}</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">species</p>
+          </div>
+          <div className="text-center">
+            <p className={`text-2xl font-bold ${report.nativePercent >= 80 ? "text-lime-300" : report.nativePercent >= 50 ? "text-yellow-300" : "text-zinc-400"}`}>
+              {report.nativePercent}%
+            </p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">native</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-white">{report.totalPlants}</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">observed</p>
           </div>
         </div>
 
-        {/* Prose */}
-        <div className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-4 mb-4">
-          <p className="text-sm text-zinc-200 leading-relaxed">{report.summaryProse}</p>
-        </div>
-
-        {/* Wildlife */}
+        {/* ── Wildlife: the wonder moment ─────────────────────────────────── */}
         {report.wildlifeSpeciesEstimate > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4 text-center">
-            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Wildlife Supported</p>
-            <p className="text-4xl font-bold text-lime-300">{report.wildlifeSpeciesEstimate}</p>
-            <p className="text-xs text-zinc-400 mt-1">moth & butterfly species hosted by native plants</p>
+          <div className="rounded-2xl border border-lime-300/10 bg-[#0a1a0f] p-6 mb-6 text-center">
+            <p className="text-5xl font-bold text-lime-300 tracking-tight">
+              {report.wildlifeSpeciesEstimate.toLocaleString()}
+            </p>
+            <p className="text-sm text-zinc-300 mt-2">
+              moth and butterfly species
+            </p>
+            <p className="text-xs text-zinc-500 mt-1">
+              hosted by the native plants on this property
+            </p>
           </div>
         )}
 
-        {/* Layers */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white">Ecosystem Layers</h3>
-            <span className="text-xs text-zinc-500">{report.layerCompleteness}/4</span>
+        {/* ── Ecosystem Structure ─────────────────────────────────────────── */}
+        <div className="mb-6">
+          <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">Ecosystem Structure</p>
+          <div className="flex items-center justify-between gap-1">
+            {(["canopy", "understory", "shrub", "ground_cover"] as const).map((layer) => {
+              const l = report.layers[layer];
+              return (
+                <div key={layer} className="flex-1 text-center">
+                  <p className={`text-lg ${layerColor[l.status]}`}>{layerEmoji[l.status]}</p>
+                  <p className="text-[10px] text-zinc-500 mt-1">{layerNames[layer]}</p>
+                  <p className="text-[9px] text-zinc-600">{l.species} spp.</p>
+                </div>
+              );
+            })}
           </div>
-          {(["canopy", "understory", "shrub", "ground_cover"] as const).map((layer) => {
-            const l = report.layers[layer];
-            const names: Record<string, string> = { canopy: "Canopy", understory: "Understory", shrub: "Shrub", ground_cover: "Ground Cover" };
-            return (
-              <div key={layer} className="flex items-center justify-between py-1.5">
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm ${statusColorMap[l.status]}`}>{statusEmoji[l.status]}</span>
-                  <span className="text-sm text-zinc-300">{names[layer]}</span>
-                </div>
-                <span className="text-xs text-zinc-500">{l.count} plants · {l.species} species</span>
-              </div>
-            );
-          })}
         </div>
 
-        {/* Species list */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
-          <h3 className="text-sm font-semibold text-white mb-3">Species Census</h3>
+        {/* ── Species: the inventory ──────────────────────────────────────── */}
+        <div className="mb-6">
+          <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">Species Observed</p>
 
-          {report.invasiveList.length > 0 && (
-            <div className="mb-3">
-              <p className="text-[10px] text-red-400 uppercase tracking-widest mb-1.5">Invasive</p>
-              {report.invasiveList.map((s: any) => (
-                <div key={s.scientificName} className="flex items-center justify-between py-1 pl-2 border-l-2 border-red-500/50">
-                  <span className="text-xs text-red-300">{s.commonName} <span className="text-red-400/60 italic">{s.scientificName}</span></span>
-                  <span className="text-xs text-red-400">×{s.count}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
+          {/* Natives */}
           {report.nativeList.length > 0 && (
-            <div className="mb-3">
-              <p className="text-[10px] text-lime-400 uppercase tracking-widest mb-1.5">Native</p>
+            <div className="mb-4">
               {report.nativeList.map((s: any) => (
-                <div key={s.scientificName} className="flex items-center justify-between py-1 pl-2 border-l-2 border-lime-500/30">
-                  <span className="text-xs text-zinc-300">{s.commonName} <span className="text-zinc-500 italic">{s.scientificName}</span>{s.wildlifeValue > 50 && <span className="text-lime-400 ml-1">★</span>}</span>
-                  <span className="text-xs text-zinc-400">×{s.count}</span>
+                <div key={s.scientificName} className="flex items-center justify-between py-1.5 border-b border-white/[0.03] last:border-0">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="w-1.5 h-1.5 rounded-full bg-lime-400 flex-none" />
+                    <div className="min-w-0">
+                      <span className="text-xs text-zinc-200">{s.commonName}</span>
+                      {s.wildlifeValue > 100 && (
+                        <span className="text-[9px] text-lime-400/70 ml-1.5">keystone</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-none">
+                    <a
+                      href={`https://www.etsy.com/search?q=${encodeURIComponent(s.scientificName + " native plant")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[9px] text-zinc-600 hover:text-lime-300 transition-colors"
+                    >
+                      find
+                    </a>
+                    <span className="text-[10px] text-zinc-600">{s.count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Invasives — matter-of-fact with native alternatives */}
+          {report.invasiveList.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] text-zinc-500 mb-2">Invasive species present</p>
+              {report.invasiveList.map((s: any) => {
+                // Suggest native alternatives for common invasives
+                const alternatives: Record<string, string[]> = {
+                  "Nandina": ["Ilex verticillata (Winterberry)", "Callicarpa americana (Beautyberry)"],
+                  "Bradford Pear": ["Amelanchier arborea (Serviceberry)", "Cercis canadensis (Redbud)"],
+                  "Chinese Privet": ["Viburnum dentatum (Arrowwood)", "Lindera benzoin (Spicebush)"],
+                  "English Ivy": ["Packera aurea (Golden Ragwort)", "Polystichum acrostichoides (Christmas Fern)"],
+                  "Japanese Honeysuckle": ["Lonicera sempervirens (Coral Honeysuckle)"],
+                  "Multiflora Rose": ["Rosa carolina (Carolina Rose)"],
+                  "Mimosa": ["Cercis canadensis (Redbud)", "Chionanthus virginicus (Fringetree)"],
+                };
+                const alts = alternatives[s.commonName] || [];
+                return (
+                  <div key={s.scientificName} className="py-2 border-b border-white/[0.03] last:border-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                        <span className="text-xs text-zinc-400">{s.commonName}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-600">{s.count}</span>
+                    </div>
+                    {alts.length > 0 && (
+                      <div className="ml-4 mt-1">
+                        <p className="text-[9px] text-zinc-600">Consider instead:</p>
+                        {alts.map((alt, i) => {
+                          const name = alt.split(" (")[0];
+                          return (
+                            <a
+                              key={i}
+                              href={`https://www.etsy.com/search?q=${encodeURIComponent(name + " native plant")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-[10px] text-lime-400/60 hover:text-lime-300 transition-colors mt-0.5"
+                            >
+                              {alt} →
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Others — quiet */}
+          {report.speciesList.filter((s: any) => s.status === "ornamental" || s.status === "unknown").length > 0 && (
+            <div>
+              {report.speciesList.filter((s: any) => s.status === "ornamental" || s.status === "unknown").map((s: any) => (
+                <div key={s.scientificName} className="flex items-center justify-between py-1.5 border-b border-white/[0.03] last:border-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                    <span className="text-xs text-zinc-500">{s.commonName}</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-700">{s.count}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* CTA */}
-        <div className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-6 text-center mb-6">
-          <p className="text-white font-semibold mb-2">Want to know your yard's ecological score?</p>
-          <p className="text-xs text-zinc-400 mb-4">Walk your yard with YardScore. Identify plants. Get your census.</p>
-          <a href="/" className="inline-block px-6 py-3 bg-lime-300 text-zinc-950 font-bold rounded-xl text-sm">
-            Try YardScore Free
+        {/* ── What's next: curiosity, not guilt ──────────────────────────── */}
+        {report.recommendations.length > 0 && (
+          <div className="mb-8">
+            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">Opportunities</p>
+            {report.recommendations.map((rec: any, i: number) => (
+              <div key={i} className="mb-4 last:mb-0">
+                <p className="text-xs text-zinc-300">{rec.action}</p>
+                <p className="text-[10px] text-zinc-600 mt-0.5">{rec.reason}</p>
+                {rec.species_suggestions && (
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                    {rec.species_suggestions.map((sp: string, j: number) => {
+                      const name = sp.split(" (")[0];
+                      return (
+                        <a
+                          key={j}
+                          href={`https://www.etsy.com/search?q=${encodeURIComponent(name + " native plant")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-lime-400/70 hover:text-lime-300 transition-colors"
+                        >
+                          {sp} →
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Divider ────────────────────────────────────────────────────── */}
+        <div className="border-t border-white/[0.04] my-8" />
+
+        {/* ── CTA: quiet, confident ──────────────────────────────────────── */}
+        <div className="text-center mb-8">
+          <p className="text-sm text-zinc-300">What's in your yard?</p>
+          <a
+            href="/"
+            className="mt-4 inline-flex items-center justify-center rounded-full bg-lime-300 px-8 py-3.5 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200"
+          >
+            Scan Your Yard
           </a>
+          <p className="text-[10px] text-zinc-600 mt-3">Free · 10 minutes · Any phone</p>
         </div>
 
-        {/* Attribution */}
-        <p className="text-center text-[9px] text-zinc-700">
-          YardScore by DrewHenry · Powered by Pl@ntNet · Wildlife data from Doug Tallamy
-        </p>
+        {/* ── Attribution ────────────────────────────────────────────────── */}
+        <div className="text-center space-y-1">
+          <p className="text-[9px] text-zinc-700">Species identification by Pl@ntNet</p>
+          <p className="text-[9px] text-zinc-700">Wildlife data from Doug Tallamy&apos;s host plant research</p>
+          <p className="text-[9px] text-zinc-700">YardScore by DrewHenry</p>
+        </div>
       </div>
     </div>
   );
