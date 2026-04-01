@@ -295,6 +295,11 @@ export default function ScanPage() {
   const startScan = useCallback(async () => {
     setState((s) => ({ ...s, status: "starting", error: null }));
 
+    // Warn Chrome iOS users — Safari is more reliable for camera
+    if (typeof navigator !== "undefined" && /CriOS/.test(navigator.userAgent)) {
+      console.warn("Chrome on iOS detected — Safari recommended for best camera experience");
+    }
+
     // Request compass permission (iOS)
     try {
       const DOE = DeviceOrientationEvent as any;
@@ -386,6 +391,27 @@ export default function ScanPage() {
     timerRef.current = setInterval(() => {
       setElapsedStr(elapsed(now));
     }, 1000);
+
+    // Stream health monitor — detect if camera stops (common on Chrome iOS)
+    const healthCheck = setInterval(() => {
+      if (streamRef.current) {
+        const tracks = streamRef.current.getVideoTracks();
+        if (tracks.length === 0 || tracks[0].readyState === "ended") {
+          // Camera stream died — try to recover
+          console.warn("Camera stream ended — attempting recovery");
+          startCamera().then((ok) => {
+            if (!ok) {
+              setState((s) => ({ ...s, status: "error", error: "Camera stopped. Tap 'Try Again' to restart." }));
+              if (intervalRef.current) clearInterval(intervalRef.current);
+            }
+          });
+        }
+      }
+    }, 5000);
+
+    // Clean up health check on unmount
+    const prevCleanup = () => { clearInterval(healthCheck); };
+    return prevCleanup;
   }, []);
 
   // ── Capture frame (fast, never blocks) ──────────────────────────────────────
@@ -507,6 +533,20 @@ export default function ScanPage() {
         const data = await r.json();
         const plantResults = (data.results || []).slice(0, 5);
 
+        // No results at all — PlantNet couldn't identify anything
+        if (plantResults.length === 0) {
+          setLatestLabel("Could not identify\nTry getting closer to leaves or flowers");
+          setAlternatives([]);
+          setTimeout(() => setLatestLabel(null), 6000);
+          classifyingRef.current = false;
+          setClassifying(false);
+          return;
+        }
+
+        // Very low confidence — warn user but still show best guess
+        const topScore = plantResults[0]?.score || 0;
+        const lowConfidence = topScore < 0.15;
+
         // Store alternatives for display
         setAlternatives(
           plantResults.slice(1, 4).map((pr: any) => ({
@@ -584,9 +624,11 @@ export default function ScanPage() {
 
           // Show label with confirm/correct options
           const parts: string[] = [];
+          if (lowConfidence) parts.push("⚠ Low confidence:");
           parts.push(commonName || species);
           if (commonName && species !== commonName) parts.push(`\n${species}`);
           parts.push(`\n${family} · ${(score * 100).toFixed(0)}%`);
+          if (lowConfidence) parts.push("\nTry closer or add more angles");
           setLatestLabel(parts.join(" "));
           setLatestSpecies(species);
           setShowCorrection(false);

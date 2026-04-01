@@ -63,10 +63,17 @@ function ReportContent() {
   const [score, setScore] = useState<LatestScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<CensusReport | null>(null);
+  const [isPro, setIsPro] = useState(true); // default true to avoid flash
 
   useEffect(() => {
     if (!token || !landUnitId) return;
     setLoading(true);
+
+    // Check billing status
+    apiFetch(token, `${API}/billing/status`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setIsPro(d.is_pro); })
+      .catch(() => {});
 
     Promise.all([
       apiFetch(token, `${API}/land_units/${landUnitId}`).then((r) => r.ok ? r.json() : null),
@@ -285,6 +292,17 @@ function ReportContent() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pro upgrade prompt */}
+        {!isPro && (
+          <div className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-5 mb-4 text-center">
+            <p className="text-sm text-white font-semibold mb-1">Unlock the full report</p>
+            <p className="text-xs text-zinc-400 mb-3">Score history, PDF export, neighbor comparison, and LLM-generated garden narrative.</p>
+            <a href="/upgrade" className="inline-block px-6 py-2.5 bg-lime-300 text-zinc-950 font-bold rounded-xl text-sm">
+              Upgrade to Pro — $29.99/year
+            </a>
           </div>
         )}
 
