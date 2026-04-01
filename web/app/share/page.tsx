@@ -34,6 +34,7 @@ interface PropertyData {
   light_summary: Record<string, number> | null;
   light_readings: number;
   lot_size_sqft: number | null;
+  narrative: string | null;
 }
 
 function ShareContent() {
@@ -175,6 +176,13 @@ function ShareContent() {
                 : " Strong light data. Recommendations are increasingly matched to your site conditions."
               }
             </p>
+          </div>
+        )}
+
+        {/* ── LLM Narrative ────────────────────────────────────────────────── */}
+        {data.narrative && (
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 mb-6">
+            <p className="text-sm text-zinc-300 leading-relaxed">{data.narrative}</p>
           </div>
         )}
 
