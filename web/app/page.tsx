@@ -5,9 +5,19 @@
  * No hype. Real numbers. Real value.
  */
 
+import { useState, useEffect } from "react";
 import { Sprout, Camera, TreePine, ShoppingBag } from "lucide-react";
 
 export default function LandingPage() {
+  const [stats, setStats] = useState<{ properties: number; species: number; scans: number; plants: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/public/stats")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setStats(d); })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#07110c] text-white">
       {/* Nav */}
@@ -48,25 +58,27 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Real stats */}
-        <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-3xl font-bold text-lime-300">28</p>
-            <p className="text-sm text-zinc-400 mt-1">species identified in one walk</p>
+        {/* Live stats */}
+        {stats && stats.properties > 0 && (
+          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="text-3xl font-bold text-lime-300">{stats.properties}</p>
+              <p className="text-sm text-zinc-400 mt-1">{stats.properties === 1 ? "property" : "properties"} scanned</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="text-3xl font-bold text-white">{stats.species}</p>
+              <p className="text-sm text-zinc-400 mt-1">species identified</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="text-3xl font-bold text-lime-300">{stats.plants}</p>
+              <p className="text-sm text-zinc-400 mt-1">plants observed</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="text-3xl font-bold text-white">{stats.scans}</p>
+              <p className="text-sm text-zinc-400 mt-1">scan sessions</p>
+            </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-3xl font-bold text-white">88%</p>
-            <p className="text-sm text-zinc-400 mt-1">native species on this property</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-3xl font-bold text-lime-300">2,345</p>
-            <p className="text-sm text-zinc-400 mt-1">wildlife species supported</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-3xl font-bold text-white">23 min</p>
-            <p className="text-sm text-zinc-400 mt-1">to census a 1-acre yard</p>
-          </div>
-        </div>
+        )}
       </section>
 
       {/* How it works */}
