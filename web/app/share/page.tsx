@@ -163,30 +163,18 @@ function ShareContent() {
         )}
 
         {/* ── Light Conditions ─────────────────────────────────────────────── */}
-        {data.light_summary && data.light_readings > 0 && (
+        {data.light_readings > 0 && (
           <div className="mb-6">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">Light Conditions</p>
-            <div className="flex gap-1 h-3 rounded-full overflow-hidden">
-              {data.light_summary["Full Sun"] > 0 && (
-                <div className="bg-yellow-300" style={{ width: `${data.light_summary["Full Sun"]}%` }} title={`Full Sun ${data.light_summary["Full Sun"]}%`} />
-              )}
-              {data.light_summary["Part Sun"] > 0 && (
-                <div className="bg-lime-400" style={{ width: `${data.light_summary["Part Sun"]}%` }} title={`Part Sun ${data.light_summary["Part Sun"]}%`} />
-              )}
-              {data.light_summary["Part Shade"] > 0 && (
-                <div className="bg-green-600" style={{ width: `${data.light_summary["Part Shade"]}%` }} title={`Part Shade ${data.light_summary["Part Shade"]}%`} />
-              )}
-              {data.light_summary["Full Shade"] > 0 && (
-                <div className="bg-blue-900" style={{ width: `${data.light_summary["Full Shade"]}%` }} title={`Full Shade ${data.light_summary["Full Shade"]}%`} />
-              )}
-            </div>
-            <div className="flex justify-between mt-2 text-[9px] text-zinc-600">
-              <span>☀️ Full Sun {data.light_summary["Full Sun"]}%</span>
-              <span>🌤 Part Sun {data.light_summary["Part Sun"]}%</span>
-              <span>🌿 Part Shade {data.light_summary["Part Shade"]}%</span>
-              <span>🌑 Shade {data.light_summary["Full Shade"]}%</span>
-            </div>
-            <p className="text-[9px] text-zinc-700 mt-1">{data.light_readings} readings across {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })} scans</p>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Site Conditions</p>
+            <p className="text-xs text-zinc-400">
+              {data.light_readings} light readings collected.
+              {data.light_readings < 50
+                ? " More scans at different times of day will build a complete sun/shade profile for planting recommendations."
+                : data.light_readings < 200
+                ? " Building toward a reliable light profile. Morning and afternoon scans of different areas will improve accuracy."
+                : " Strong light data. Recommendations are increasingly matched to your site conditions."
+              }
+            </p>
           </div>
         )}
 
