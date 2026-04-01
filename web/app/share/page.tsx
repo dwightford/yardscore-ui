@@ -34,7 +34,6 @@ interface PropertyData {
   light_summary: Record<string, number> | null;
   light_readings: number;
   lot_size_sqft: number | null;
-  narrative: string | null;
 }
 
 function ShareContent() {
@@ -44,6 +43,7 @@ function ShareContent() {
   const [data, setData] = useState<PropertyData | null>(null);
   const [report, setReport] = useState<CensusReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [narrative, setNarrative] = useState<string | null>(null);
 
   useEffect(() => {
     if (!landUnitId) return;
@@ -67,6 +67,12 @@ function ShareContent() {
           }
         }
         setLoading(false);
+
+        // Fetch LLM narrative lazily (don't block page load)
+        fetch(`/api/public/narrative/${landUnitId}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((n) => { if (n?.narrative) setNarrative(n.narrative); })
+          .catch(() => {});
       })
       .catch(() => setLoading(false));
   }, [landUnitId]);
@@ -179,10 +185,17 @@ function ShareContent() {
           </div>
         )}
 
-        {/* ── LLM Narrative ────────────────────────────────────────────────── */}
-        {data.narrative && (
+        {/* ── LLM Narrative (loads after page) ────────────────────────────── */}
+        {narrative ? (
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 mb-6">
-            <p className="text-sm text-zinc-300 leading-relaxed">{data.narrative}</p>
+            <p className="text-sm text-zinc-300 leading-relaxed">{narrative}</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/[0.04] bg-white/[0.01] p-5 mb-6">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 border-2 border-lime-300/40 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-zinc-600">Generating garden narrative...</p>
+            </div>
           </div>
         )}
 
