@@ -161,7 +161,8 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
         <div className="border-t border-white/5 px-5 py-4 space-y-4">
           {/* Quick actions */}
           <div className="flex gap-2">
-            <a href="/scan" className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">Scan</a>
+            <a href={`/property/${place.id}`} className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">Structure</a>
+            <a href="/scan" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Scan</a>
             <a href="/map" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Map</a>
             <a href={`/report?id=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Report</a>
           </div>
