@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/field", label: "Field" },
   { href: "/capture", label: "Upload" },
   { href: "/map", label: "Map" },
   { href: "/scan", label: "Scan", arrow: true },
