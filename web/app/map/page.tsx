@@ -74,6 +74,17 @@ interface Entity {
   last_observed: string | null;
 }
 
+interface LightObs {
+  id: string;
+  time_bucket: string;
+  light_level: string;
+  device_lat: number | null;
+  device_lng: number | null;
+  observed_at: string;
+}
+
+type MapLayer = "plants" | "light" | "structure";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function entityColor(type: string): string {
@@ -163,8 +174,19 @@ export default function MapPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [lightObs, setLightObs] = useState<LightObs[]>([]);
+  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(new Set(["plants"]));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  function toggleLayer(layer: MapLayer) {
+    setActiveLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(layer)) next.delete(layer);
+      else next.add(layer);
+      return next;
+    });
+  }
 
   // ── Load land units ──────────────────────────────────────────────────────
 
@@ -192,10 +214,12 @@ export default function MapPage() {
   const loadPlaceData = useCallback(async (landUnitId: string) => {
     setParcels([]);
     setEntities([]);
+    setLightObs([]);
     try {
-      const [parcelsRes, entitiesRes] = await Promise.all([
+      const [parcelsRes, entitiesRes, lightRes] = await Promise.all([
         apiFetch(tokenRef.current, `${API}/parcels?land_unit_id=${landUnitId}`),
         apiFetch(tokenRef.current, `${API}/entities?land_unit_id=${landUnitId}`),
+        apiFetch(tokenRef.current, `${API}/light-observations?land_unit_id=${landUnitId}`),
       ]);
       if (parcelsRes.ok) {
         const parcelList = await parcelsRes.json();
@@ -214,6 +238,10 @@ export default function MapPage() {
       if (entitiesRes.ok) {
         const e: Entity[] = await entitiesRes.json();
         setEntities(e);
+      }
+      if (lightRes.ok) {
+        const l: LightObs[] = await lightRes.json();
+        setLightObs(l);
       }
     } catch {
       // non-critical — map still renders
@@ -336,7 +364,7 @@ export default function MapPage() {
             })}
 
             {/* Entity markers — colored circles, draggable, tap for details */}
-            {entities.map((entity) => {
+            {activeLayers.has("plants") && entities.map((entity) => {
               if (entity.estimated_lat == null || entity.estimated_lng == null)
                 return null;
               const icon = makeEntityIcon(entity.entity_type);
@@ -391,26 +419,92 @@ export default function MapPage() {
                 </Marker>
               );
             })}
+
+            {/* Light observation markers — amber sun dots */}
+            {activeLayers.has("light") && lightObs.map((lo) => {
+              if (lo.device_lat == null || lo.device_lng == null) return null;
+              const lightColor = lo.light_level === "full_sun" ? "#fbbf24"
+                : lo.light_level === "part_sun" ? "#f59e0b"
+                : lo.light_level === "dappled" ? "#d97706"
+                : lo.light_level === "part_shade" ? "#92400e"
+                : "#78350f";
+              return (
+                <CircleMarker
+                  key={lo.id}
+                  center={[lo.device_lat, lo.device_lng]}
+                  radius={6}
+                  pathOptions={{ color: lightColor, fillColor: lightColor, fillOpacity: 0.7, weight: 1 }}
+                >
+                  <Tooltip direction="top" offset={[0, -8]}>
+                    <span style={{ fontSize: "11px" }}>
+                      {lo.light_level.replace(/_/g, " ")} · {lo.time_bucket}
+                    </span>
+                  </Tooltip>
+                </CircleMarker>
+              );
+            })}
           </MapContainer>
         )}
 
-        {/* Legend */}
-        <div className="absolute bottom-4 left-4 z-[1000] bg-black/70 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-3">
-          {[
-            { type: "tree", label: "Tree" },
-            { type: "shrub", label: "Shrub" },
-            { type: "herb", label: "Herb" },
-            { type: "ground_cover", label: "Ground" },
-          ].map(({ type, label }) => (
-            <div key={type} className="flex items-center gap-1.5">
-              <div className="rounded-full" style={{
-                backgroundColor: entityColor(type),
-                width: entityRadius(type) * 2,
-                height: entityRadius(type) * 2,
-              }} />
-              <span className="text-[10px] text-white/70">{label}</span>
+        {/* Layer toggles + legend */}
+        <div className="absolute bottom-4 left-4 z-[1000] bg-black/80 backdrop-blur-sm rounded-xl px-3 py-2.5 space-y-2">
+          {/* Layer toggles */}
+          <div className="flex items-center gap-2">
+            {([
+              { key: "plants" as MapLayer, label: "Plants", color: "#84cc16", count: entities.length },
+              { key: "light" as MapLayer, label: "Light", color: "#fbbf24", count: lightObs.filter(l => l.device_lat).length },
+            ]).map(({ key, label, color, count }) => (
+              <button
+                key={key}
+                onClick={() => toggleLayer(key)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+                  activeLayers.has(key) ? "bg-white/15 text-white" : "bg-white/5 text-white/40"
+                }`}
+              >
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeLayers.has(key) ? color : "#555" }} />
+                {label} ({count})
+              </button>
+            ))}
+          </div>
+
+          {/* Plant type legend (when plants layer is active) */}
+          {activeLayers.has("plants") && (
+            <div className="flex items-center gap-3 pt-1 border-t border-white/10">
+              {[
+                { type: "tree", label: "Tree" },
+                { type: "shrub", label: "Shrub" },
+                { type: "herb", label: "Herb" },
+                { type: "ground_cover", label: "Ground" },
+              ].map(({ type, label }) => (
+                <div key={type} className="flex items-center gap-1">
+                  <div className="rounded-full" style={{
+                    backgroundColor: entityColor(type),
+                    width: entityRadius(type) * 2,
+                    height: entityRadius(type) * 2,
+                  }} />
+                  <span className="text-[10px] text-white/60">{label}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* Light level legend (when light layer is active) */}
+          {activeLayers.has("light") && (
+            <div className="flex items-center gap-3 pt-1 border-t border-white/10">
+              {[
+                { level: "Full Sun", color: "#fbbf24" },
+                { level: "Part Sun", color: "#f59e0b" },
+                { level: "Dappled", color: "#d97706" },
+                { level: "Part Shade", color: "#92400e" },
+                { level: "Full Shade", color: "#78350f" },
+              ].map(({ level, color }) => (
+                <div key={level} className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] text-white/60">{level}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

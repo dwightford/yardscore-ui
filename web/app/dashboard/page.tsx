@@ -41,6 +41,13 @@ interface EntitySummary {
   observation_count: number;
 }
 
+interface ReadinessNext {
+  observation_type: string;
+  prompt: string;
+  reason: string;
+  path: string;
+}
+
 interface PlaceWithData {
   place: LandUnit;
   score: LatestScore | null;
@@ -48,6 +55,8 @@ interface PlaceWithData {
   entities: EntitySummary[];
   hasParcel: boolean;
   sessions: SessionSummary[];
+  lightObservationCount: number;
+  readiness: ReadinessNext | null;
   loading: boolean;
 }
 
@@ -114,9 +123,17 @@ function ScoreBadge({ score, size = "md" }: { score: LatestScore | null | "loadi
 
 // ── Property card ─────────────────────────────────────────────────────────────
 
-function PropertyCard({ item }: { item: PlaceWithData }) {
-  const { place, score, entityCount, entities, hasParcel, sessions, loading } = item;
-  const [expanded, setExpanded] = useState(false);
+function readinessLink(r: ReadinessNext, placeId: string): string {
+  switch (r.observation_type) {
+    case "light_profile": return `/property/${placeId}/light`;
+    case "species_census": return "/scan";
+    default: return r.path || "/observe";
+  }
+}
+
+function PropertyCard({ item, autoExpand }: { item: PlaceWithData; autoExpand?: boolean }) {
+  const { place, score, entityCount, entities, hasParcel, sessions, lightObservationCount, readiness, loading } = item;
+  const [expanded, setExpanded] = useState(autoExpand ?? false);
   const v = score ? Math.round(score.score_value) : null;
 
   // Census analysis from entities
@@ -150,6 +167,11 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
           <div className="text-right">
             <p className="text-xs text-zinc-400">{entityCount} plants</p>
             <p className="text-xs text-zinc-500">{sessions.length} scans</p>
+            <div className="flex items-center gap-1 mt-1 justify-end">
+              <span className={`w-2 h-2 rounded-full ${entityCount > 10 ? "bg-green-400" : "bg-zinc-600"}`} title="Plant coverage" />
+              <span className={`w-2 h-2 rounded-full ${lightObservationCount > 3 ? "bg-amber-400" : "bg-zinc-600"}`} title="Light coverage" />
+              <span className={`w-2 h-2 rounded-full ${entities.some((e: any) => e.ecological_layer) ? "bg-emerald-400" : "bg-zinc-600"}`} title="Structure coverage" />
+            </div>
           </div>
           <svg className={`w-4 h-4 text-zinc-500 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -159,10 +181,24 @@ function PropertyCard({ item }: { item: PlaceWithData }) {
 
       {expanded && (
         <div className="border-t border-white/5 px-5 py-4 space-y-4">
+          {/* Readiness prompt */}
+          {readiness && (
+            <div className="bg-lime-300/5 border border-lime-300/15 rounded-xl p-4">
+              <p className="text-[10px] text-lime-300/70 uppercase tracking-wider mb-1.5">Next best observation</p>
+              <p className="text-sm text-zinc-200 mb-3">{readiness.prompt}</p>
+              <a
+                href={readinessLink(readiness, place.id)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-lime-300 hover:text-lime-200 transition-colors"
+              >
+                {readiness.reason} <span aria-hidden="true">&rarr;</span>
+              </a>
+            </div>
+          )}
+
           {/* Quick actions */}
           <div className="flex gap-2">
-            <a href={`/property/${place.id}`} className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">Structure</a>
-            <a href="/scan" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Scan</a>
+            <a href={`/property/${place.id}`} className="flex-1 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg text-center hover:bg-lime-200 transition-colors">View Structure</a>
+            <a href="/observe" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">New Observation</a>
             <a href="/map" className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Map</a>
             <a href={`/report?id=${place.id}`} className="flex-1 py-2 bg-white/10 text-white text-xs font-medium rounded-lg text-center hover:bg-white/20 transition-colors">Report</a>
           </div>
@@ -340,20 +376,23 @@ export default function Dashboard() {
       const units: LandUnit[] = await res.json();
 
       setPlaces(units.map((p) => ({
-        place: p, score: null, entityCount: 0, entities: [], hasParcel: false, sessions: [], loading: true,
+        place: p, score: null, entityCount: 0, entities: [], hasParcel: false, sessions: [], lightObservationCount: 0, readiness: null, loading: true,
       })));
       setLoading(false);
 
       const hydrated = await Promise.all(
         units.map(async (p) => {
           try {
-            const [sr, er, pr, sesr] = await Promise.all([
+            const [sr, er, pr, sesr, lr, rr] = await Promise.all([
               apiFetch(token, `${API}/yardscore/${p.id}/latest`),
               apiFetch(token, `${API}/entities?land_unit_id=${p.id}`),
               apiFetch(token, `${API}/parcels?land_unit_id=${p.id}`),
               apiFetch(token, `${API}/observation_sessions?land_unit_id=${p.id}`),
+              apiFetch(token, `${API}/light-observations?land_unit_id=${p.id}`),
+              apiFetch(token, `${API}/land_units/${p.id}/readiness/next`),
             ]);
             const entList = er.ok ? await er.json() : [];
+            const lightObs = lr.ok ? await lr.json() : [];
             return {
               place: p,
               score: sr.ok ? await sr.json() : null,
@@ -361,10 +400,12 @@ export default function Dashboard() {
               entities: entList,
               hasParcel: pr.ok ? (await pr.json()).length > 0 : false,
               sessions: sesr.ok ? await sesr.json() : [],
+              lightObservationCount: Array.isArray(lightObs) ? lightObs.length : 0,
+              readiness: rr.ok ? await rr.json() : null,
               loading: false,
             };
           } catch {
-            return { place: p, score: null, entityCount: 0, entities: [], hasParcel: false, sessions: [], loading: false };
+            return { place: p, score: null, entityCount: 0, entities: [], hasParcel: false, sessions: [], lightObservationCount: 0, readiness: null, loading: false };
           }
         })
       );
@@ -398,7 +439,7 @@ export default function Dashboard() {
             <a href="/dashboard" className="text-lime-300 font-medium">Dashboard</a>
             <a href="/map" className="hover:text-white transition-colors">Map</a>
             <a href="/upgrade" className="hover:text-lime-300 transition-colors">Pro</a>
-            <a href="/scan" className="hover:text-white transition-colors">Scan →</a>
+            <a href="/observe" className="hover:text-white transition-colors">Observe →</a>
           </div>
         </div>
       </nav>
@@ -428,7 +469,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-white">Your Properties</h1>
           <div className="flex items-center gap-2">
-            <a href="/scan" className="px-4 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg hover:bg-lime-200 transition-colors">Start Scan</a>
+            <a href="/observe" className="px-4 py-2 bg-lime-300 text-zinc-950 text-xs font-semibold rounded-lg hover:bg-lime-200 transition-colors">New Observation</a>
             <button
               onClick={() => setShowNewPlace(true)}
               className="px-4 py-2 bg-white/10 text-white text-xs font-medium rounded-lg hover:bg-white/20 transition-colors"
@@ -460,13 +501,13 @@ export default function Dashboard() {
               </svg>
             </div>
             <h2 className="text-lg font-semibold text-white mb-1">No properties yet</h2>
-            <p className="text-sm text-zinc-400 mb-6">Start a scan to create your first property automatically from GPS.</p>
-            <a href="/scan" className="inline-flex px-6 py-3 bg-lime-300 text-zinc-950 font-semibold rounded-xl text-sm hover:bg-lime-200 transition-colors">Start Your First Scan</a>
+            <p className="text-sm text-zinc-400 mb-6">Add a property to start recording observations.</p>
+            <a href="/observe" className="inline-flex px-6 py-3 bg-lime-300 text-zinc-950 font-semibold rounded-xl text-sm hover:bg-lime-200 transition-colors">New Observation</a>
           </div>
         ) : (
           <div className="space-y-3">
             {places.map((item) => (
-              <PropertyCard key={item.place.id} item={item} />
+              <PropertyCard key={item.place.id} item={item} autoExpand={places.length === 1} />
             ))}
           </div>
         )}
