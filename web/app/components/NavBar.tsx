@@ -1,5 +1,7 @@
 "use client";
 
+import { useSession } from "next-auth/react";
+
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/capture", label: "Upload" },
@@ -8,6 +10,11 @@ const navItems = [
 ];
 
 export default function NavBar({ active }: { active?: string }) {
+  const { data: session } = useSession();
+  const initial = ((session?.user as any)?.name ?? (session?.user as any)?.email ?? "?")
+    .charAt(0)
+    .toUpperCase();
+
   return (
     <nav className="bg-white border-b border-gray-200 flex-none">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -40,6 +47,14 @@ export default function NavBar({ active }: { active?: string }) {
                 </a>
               );
             })}
+            {/* Profile avatar */}
+            <a
+              href="/profile"
+              title="Profile"
+              className="w-7 h-7 rounded-full bg-[#2d6a4f]/15 border border-[#2d6a4f]/30 flex items-center justify-center text-[#2d6a4f] text-xs font-semibold hover:bg-[#2d6a4f]/25 transition-colors"
+            >
+              {initial}
+            </a>
           </div>
         </div>
       </div>

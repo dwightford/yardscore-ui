@@ -72,7 +72,7 @@ export const authConfig: NextAuthConfig = {
     },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isProtected = ["/dashboard", "/scan", "/capture", "/map", "/identify", "/debug", "/plant", "/admin", "/report", "/upgrade", "/property", "/observe"].some(
+      const isProtected = ["/dashboard", "/scan", "/capture", "/map", "/identify", "/debug", "/plant", "/admin", "/report", "/upgrade", "/property", "/observe", "/profile"].some(
         (r) => nextUrl.pathname === r || nextUrl.pathname.startsWith(r + "/")
       );
 
@@ -81,7 +81,21 @@ export const authConfig: NextAuthConfig = {
     },
   },
   basePath: "/auth",
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },  // 30 days
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },  // 30 days JWT expiry
+  // Explicit cookie config — ensures the browser cookie itself has a max-age so it
+  // survives iOS Safari backgrounding / session end (not just a session cookie).
+  cookies: {
+    sessionToken: {
+      name: "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: false,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      },
+    },
+  },
   secret: process.env.AUTH_SECRET,
   trustHost: true,
   useSecureCookies: false,
