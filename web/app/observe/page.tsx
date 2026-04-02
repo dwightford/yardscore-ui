@@ -202,11 +202,10 @@ export default function ObservePage() {
 
   function handleLightReading() {
     if (properties.length === 1) {
-      router.push(`/property/${properties[0].id}/light`);
+      router.push(`/property/${properties[0].id}/light-walk`);
     } else if (selectedPropertyId) {
-      router.push(`/property/${selectedPropertyId}/light`);
+      router.push(`/property/${selectedPropertyId}/light-walk`);
     } else {
-      // fallback — go to scan so they can create a property
       router.push("/scan");
     }
   }

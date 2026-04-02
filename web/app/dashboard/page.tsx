@@ -125,7 +125,7 @@ function ScoreBadge({ score, size = "md" }: { score: LatestScore | null | "loadi
 
 function readinessLink(r: ReadinessNext, placeId: string): string {
   switch (r.observation_type) {
-    case "light_profile": return `/property/${placeId}/light`;
+    case "light_profile": return `/property/${placeId}/light-walk`;
     case "species_census": return "/scan";
     default: return r.path || "/observe";
   }
