@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { SignJWT } from "jose";
 
 // Server-side API URL: inside Docker use service name, outside use localhost
@@ -14,8 +15,25 @@ async function createApiToken(userId: string, email: string): Promise<string> {
     .sign(secret);
 }
 
+/** Ensure the user exists in the API backend (auto-creates if needed). */
+async function ensureApiUser(email: string, name?: string | null): Promise<{ id: string; email: string; display_name: string }> {
+  const r = await fetch(`${API_INTERNAL}/auth/profile?email=${encodeURIComponent(email)}`);
+  if (r.ok) return r.json();
+  throw new Error("Could not resolve API user");
+}
+
 export const authConfig: NextAuthConfig = {
   providers: [
+    // Google OAuth — persistent sessions, no email codes
+    ...(process.env.GOOGLE_CLIENT_ID
+      ? [
+          Google({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+          }),
+        ]
+      : []),
+    // Magic-link email fallback
     Credentials({
       id: "magic-link",
       name: "Email",
@@ -51,13 +69,29 @@ export const authConfig: NextAuthConfig = {
     error: "/login/error",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
-        // Create a plain HS256 JWT for API calls
-        token.apiToken = await createApiToken(user.id as string, user.email as string);
+        if (account?.provider === "google") {
+          // Google OAuth: resolve the API user (auto-creates if needed)
+          try {
+            const apiUser = await ensureApiUser(user.email!, user.name);
+            token.id = apiUser.id;
+            token.email = apiUser.email;
+            token.name = apiUser.display_name;
+            token.apiToken = await createApiToken(apiUser.id, apiUser.email);
+          } catch {
+            // Fallback: use Google profile directly (API calls will fail gracefully)
+            token.id = user.id;
+            token.email = user.email;
+            token.name = user.name;
+          }
+        } else {
+          // Magic-link: user already resolved from API in authorize()
+          token.id = user.id;
+          token.email = user.email;
+          token.name = user.name;
+          token.apiToken = await createApiToken(user.id as string, user.email as string);
+        }
       }
       return token;
     },
