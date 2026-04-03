@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * /property/[id] — v2 Structure Browser
+ * /property/[id] — Property Home
  *
- * The primary product surface. Shows a property's ecosystem structure,
- * signals, readiness, and outcome profiles.
+ * The primary logged-in web surface.
+ * Canon spine: Home → Structure → Signals → Readiness → Narrative
+ *
+ * Mobile observes. Web interprets.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -356,6 +358,9 @@ export default function PropertyPage() {
   const [walks, setWalks] = useState<WalkHistoryEntry[]>([]);
   const [walksLoading, setWalksLoading] = useState(true);
 
+  type WebTab = "home" | "structure" | "signals" | "readiness" | "narrative";
+  const [activeTab, setActiveTab] = useState<WebTab>("home");
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const fetchLandUnit = useCallback(async () => {
@@ -550,6 +555,92 @@ export default function PropertyPage() {
           <p className="text-zinc-400">Property not found.</p>
         )}
 
+        {/* ── Tab spine ────────────────────────────────────────────────────── */}
+        <nav className="flex gap-1 overflow-x-auto -mx-5 px-5 scrollbar-none">
+          {([
+            { key: "home", label: "Home" },
+            { key: "structure", label: "Structure" },
+            { key: "signals", label: "Signals" },
+            { key: "readiness", label: "Readiness" },
+            { key: "narrative", label: "Narrative" },
+          ] as const).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={[
+                "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+                activeTab === key
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-500 hover:text-zinc-300",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {/* ── Home tab ───────────────────────────────────────────────────────── */}
+        {activeTab === "home" && (
+          <section className="space-y-4">
+            {/* Next best action */}
+            {nextObs && (
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+                <p className="text-stone-400 text-[10px] uppercase tracking-wide mb-1">Next observation</p>
+                <p className="text-stone-200 text-sm">{nextObs.description}</p>
+                <p className="text-stone-500 text-xs mt-0.5">{nextObs.impact}</p>
+              </div>
+            )}
+
+            {/* Quick stats */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white/[0.03] rounded-xl px-3 py-2.5 text-center">
+                <p className="text-white text-lg font-bold">{walks.length}</p>
+                <p className="text-stone-500 text-[10px]">walks</p>
+              </div>
+              <div className="bg-white/[0.03] rounded-xl px-3 py-2.5 text-center">
+                <p className="text-white text-lg font-bold">{layers.reduce((sum, l) => sum + l.entity_count, 0)}</p>
+                <p className="text-stone-500 text-[10px]">plants known</p>
+              </div>
+              <div className="bg-white/[0.03] rounded-xl px-3 py-2.5 text-center">
+                <p className="text-white text-lg font-bold">{signals.length}</p>
+                <p className="text-stone-500 text-[10px]">signals</p>
+              </div>
+            </div>
+
+            {/* Recent walks */}
+            {walks.length > 0 && (
+              <div>
+                <p className="text-stone-500 text-[10px] uppercase tracking-wide mb-2">Recent walks</p>
+                {walks.slice(0, 3).map((w) => {
+                  const d = new Date(w.started_at);
+                  return (
+                    <div key={w.id} className="flex items-center gap-3 py-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${w.status === "active" ? "bg-green-400 animate-pulse" : "bg-stone-600"}`} />
+                      <span className="text-xs text-stone-400">
+                        {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        {" "}
+                        <span className="text-stone-600">{d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                      </span>
+                      <span className="text-[10px] text-stone-600 ml-auto">{(w.subject_count ?? 0) + (w.patch_count ?? 0)} noted</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Start observing CTA */}
+            <a
+              href="/walk"
+              className="block w-full text-center bg-green-600/80 hover:bg-green-600 text-white font-medium rounded-xl py-3 text-sm transition"
+            >
+              Start observing
+            </a>
+          </section>
+        )}
+
+        {/* ── Structure tab ──────────────────────────────────────────────────── */}
+        {activeTab === "structure" && (
+        <>
         {/* ── 2. Structure Browser ────────────────────────────────────────── */}
         <section>
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
@@ -629,7 +720,21 @@ export default function PropertyPage() {
             </div>
           )}
         </section>
+        </>
+        )}
 
+        {/* ── Signals tab ────────────────────────────────────────────────────── */}
+        {activeTab === "signals" && (
+        <section>
+          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Signals</h2>
+          {/* Signals content is rendered in the structure tab above for now — TODO: move here */}
+          <p className="text-stone-500 text-xs">Signal computation is available on the Structure tab. This will become its own dedicated view.</p>
+        </section>
+        )}
+
+        {/* ── Readiness tab ──────────────────────────────────────────────────── */}
+        {activeTab === "readiness" && (
+        <>
         {/* ── 4. Readiness ────────────────────────────────────────────────── */}
         <section>
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
@@ -687,7 +792,26 @@ export default function PropertyPage() {
           )}
         </section>
 
-        {/* ── 5. Outcome Profiles ─────────────────────────────────────────── */}
+        </>
+        )}
+
+        {/* ── Narrative tab ──────────────────────────────────────────────────── */}
+        {activeTab === "narrative" && (
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Narrative</h2>
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-4">
+              <p className="text-stone-400 text-sm leading-relaxed">
+                Narrative generation requires the voice layer (Phase 4 in the rollout plan).
+                When available, this will include yard summary, vista notes, sensory notes,
+                progress coaching, and shareable summaries.
+              </p>
+              <p className="text-stone-600 text-xs mt-3">TODO: connect to narrator API endpoint</p>
+            </div>
+          </div>
+
+          {/* Outcome profiles belong under narrative — they shape the story */}
+          {/* ── 5. Outcome Profiles ─────────────────────────────────────────── */}
         <section>
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
             Outcome Profiles
@@ -732,6 +856,12 @@ export default function PropertyPage() {
           )}
         </section>
 
+        </section>
+        )}
+
+        {/* ── 6. Walk History (visible on Home tab) ──────────────────────── */}
+        {activeTab === "home" && (
+        <>
         {/* ── 6. Walk History ─────────────────────────────────────────────── */}
         <section>
           <div className="flex items-center justify-between mb-3">
@@ -795,6 +925,9 @@ export default function PropertyPage() {
             </div>
           )}
         </section>
+
+        </>
+        )}
 
         {/* ── 7. Quick Actions ────────────────────────────────────────────── */}
         <section>
