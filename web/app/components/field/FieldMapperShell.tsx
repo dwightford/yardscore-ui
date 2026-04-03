@@ -712,6 +712,7 @@ export default function FieldMapperShell({
           activeMode={activeMode}
           walkActive={walkActive}
           onSelect={handleModeSelect}
+          onFinishWalk={walkActive ? handleEndWalk : undefined}
         />
       </div>
     </div>

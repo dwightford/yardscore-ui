@@ -43,12 +43,14 @@ interface BottomActionRailProps {
   activeMode: ActionMode;
   walkActive: boolean;
   onSelect: (mode: ActionMode) => void;
+  onFinishWalk?: () => void;
 }
 
 export default function BottomActionRail({
   activeMode,
   walkActive,
   onSelect,
+  onFinishWalk,
 }: BottomActionRailProps) {
   const [showMore, setShowMore] = React.useState(false);
 
@@ -73,6 +75,19 @@ export default function BottomActionRail({
         </div>
       )}
 
+      {/* Finish Walk bar — visible when walking */}
+      {walkActive && onFinishWalk && (
+        <div className="flex items-center justify-center px-4 py-2 border-b border-white/5">
+          <button
+            onClick={onFinishWalk}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-stone-700 hover:bg-stone-600 text-stone-200 text-sm font-semibold transition active:scale-95"
+          >
+            <span className="w-2 h-2 rounded-full bg-red-400" />
+            Finish Walk
+          </button>
+        </div>
+      )}
+
       {/* Primary actions */}
       <div className="flex items-end justify-around px-2 pt-2">
         {PRIMARY_ACTIONS.map(({ mode, icon, label }) => {
@@ -87,8 +102,8 @@ export default function BottomActionRail({
               key={mode}
               onClick={() => onSelect(mode)}
               className={[
-                "flex flex-col items-center gap-1 px-5 py-2 rounded-xl transition-all",
-                "min-w-[64px] focus:outline-none active:scale-95",
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
+                "min-w-[56px] focus:outline-none active:scale-95",
                 isActive
                   ? "bg-white/15 text-white"
                   : "text-white/50 hover:text-white/80",
