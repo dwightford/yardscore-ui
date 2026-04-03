@@ -24,6 +24,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import FieldMapperShell from "./FieldMapperShell";
+import CameraFeed from "./CameraFeed";
 import { useGps } from "@/hooks/useGps";
 import * as fieldApi from "@/lib/field-api";
 
@@ -446,97 +447,89 @@ export default function GuidedWalkFlow({
     );
   }
 
-  // ── Screen 1: Origin Anchor ────────────────────────────────────────────
+  // ── Pre-walk screens (origin + begin) — camera always visible behind ────
 
-  if (step === "origin") {
+  if (step === "origin" || step === "begin") {
     return (
-      <div className="h-[100dvh] bg-stone-950 flex flex-col items-center justify-center px-6">
-        <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
-          <div className="w-20 h-20 rounded-full bg-amber-900/30 border border-amber-700/30 flex items-center justify-center">
-            <span className="text-3xl">🏠</span>
+      <div className="relative h-[100dvh] overflow-hidden bg-black">
+        {/* Live camera background */}
+        <CameraFeed active />
+
+        {/* Overlay card */}
+        <div className="absolute inset-0 flex flex-col justify-end pointer-events-none">
+          <div className="pointer-events-auto bg-black/80 backdrop-blur-md rounded-t-2xl px-6 pt-6 pb-8" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
+            {step === "origin" ? (
+              <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-5 text-center">
+                <div>
+                  <h1 className="text-white text-xl font-semibold mb-2">
+                    Start at your front door
+                  </h1>
+                  <p className="text-stone-400 text-sm leading-relaxed">
+                    This gives your map a home base. Point the camera at your door and tap below.
+                  </p>
+                </div>
+
+                {error && <InlineError message={error} />}
+
+                <button
+                  onClick={handleSetFrontDoor}
+                  disabled={originSaving}
+                  className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
+                >
+                  {originSaving ? "Setting..." : "Set Front Door"}
+                </button>
+
+                <button
+                  onClick={handleSkipOrigin}
+                  className="text-stone-500 hover:text-stone-300 text-sm transition"
+                >
+                  Not at front door
+                </button>
+              </div>
+            ) : (
+              <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-5 text-center">
+                <div>
+                  <h1 className="text-white text-xl font-semibold mb-2">
+                    {memCtx && memCtx.walkCount > 0
+                      ? `Walk ${memCtx.walkCount + 1}`
+                      : "Walk your property"}
+                  </h1>
+                  <p className="text-stone-400 text-sm leading-relaxed">
+                    {beginWalkBody(memCtx)}
+                  </p>
+                </div>
+
+                {memCtx && memCtx.walkCount > 0 && (
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    <ContextChip
+                      value={String(memCtx.walkCount)}
+                      label={memCtx.walkCount === 1 ? "walk so far" : "walks so far"}
+                    />
+                    {memCtx.anchorCount > 0 && (
+                      <ContextChip
+                        value={String(memCtx.anchorCount)}
+                        label={memCtx.anchorCount === 1 ? "reference point" : "reference points"}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {error && <InlineError message={error} />}
+
+                <button
+                  onClick={handleBeginWalk}
+                  disabled={walkStarting}
+                  className="w-full bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
+                >
+                  {walkStarting ? "Starting..." : "Begin Walk"}
+                </button>
+
+                {propertyLabel && (
+                  <p className="text-stone-600 text-xs">{propertyLabel}</p>
+                )}
+              </div>
+            )}
           </div>
-
-          <div>
-            <h1 className="text-white text-xl font-semibold mb-3">
-              Start at your front door
-            </h1>
-            <p className="text-stone-400 text-sm leading-relaxed">
-              Your front door gives your property map a home base. Every walk
-              starts from here, so the app can place what you find relative
-              to where you live.
-            </p>
-          </div>
-
-          {error && <InlineError message={error} />}
-
-          <button
-            onClick={handleSetFrontDoor}
-            disabled={originSaving}
-            className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
-          >
-            {originSaving ? "Setting..." : "Set Front Door"}
-          </button>
-
-          <button
-            onClick={handleSkipOrigin}
-            className="text-stone-500 hover:text-stone-300 text-sm transition"
-          >
-            Not at front door
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Screen 2: Begin Walk ───────────────────────────────────────────────
-
-  if (step === "begin") {
-    return (
-      <div className="h-[100dvh] bg-stone-950 flex flex-col items-center justify-center px-6">
-        <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
-          <div className="w-20 h-20 rounded-full bg-green-900/30 border border-green-700/30 flex items-center justify-center">
-            <span className="text-3xl">👣</span>
-          </div>
-
-          <div>
-            <h1 className="text-white text-xl font-semibold mb-3">
-              {memCtx && memCtx.walkCount > 0
-                ? `Walk ${memCtx.walkCount + 1}`
-                : "Walk your property"}
-            </h1>
-            <p className="text-stone-400 text-sm leading-relaxed">
-              {beginWalkBody(memCtx)}
-            </p>
-          </div>
-
-          {memCtx && memCtx.walkCount > 0 && (
-            <div className="flex gap-2 flex-wrap justify-center">
-              <ContextChip
-                value={String(memCtx.walkCount)}
-                label={memCtx.walkCount === 1 ? "walk so far" : "walks so far"}
-              />
-              {memCtx.anchorCount > 0 && (
-                <ContextChip
-                  value={String(memCtx.anchorCount)}
-                  label={memCtx.anchorCount === 1 ? "reference point" : "reference points"}
-                />
-              )}
-            </div>
-          )}
-
-          {error && <InlineError message={error} />}
-
-          <button
-            onClick={handleBeginWalk}
-            disabled={walkStarting}
-            className="w-full bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
-          >
-            {walkStarting ? "Starting..." : "Begin Walk"}
-          </button>
-
-          {propertyLabel && (
-            <p className="text-stone-600 text-xs">{propertyLabel}</p>
-          )}
         </div>
       </div>
     );

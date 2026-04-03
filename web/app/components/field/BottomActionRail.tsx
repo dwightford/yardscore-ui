@@ -4,11 +4,11 @@
  * BottomActionRail
  *
  * Primary action bar at the bottom of the Field Mapper HUD.
- * Six actions visible to the user in plain language.
- * Active action is highlighted.
+ * Three primary actions — big, thumb-friendly, grandma-safe.
+ * Secondary actions (anchor, area) accessible via "More" or
+ * triggered contextually by the guided flow.
  *
  * Layout: easy thumb reach, stable, no clutter.
- * The "More" slot is a placeholder for future secondary actions.
  */
 
 import React from "react";
@@ -25,15 +25,18 @@ interface Action {
   mode: ActionMode;
   icon: string;
   label: string;
+  primary?: boolean;
 }
 
-const ACTIONS: Action[] = [
-  { mode: "walk",     icon: "👣", label: "Walk"     },
-  { mode: "identify", icon: "🔍", label: "Identify"  },
+const PRIMARY_ACTIONS: Action[] = [
+  { mode: "walk",     icon: "👣", label: "Walk",     primary: true },
+  { mode: "identify", icon: "🔍", label: "Identify", primary: true },
+  { mode: "light",    icon: "☀️", label: "Light",    primary: true },
+];
+
+const SECONDARY_ACTIONS: Action[] = [
   { mode: "anchor",   icon: "📍", label: "Anchor"    },
   { mode: "area",     icon: "🌿", label: "Mark Area" },
-  { mode: "light",    icon: "☀️", label: "Light"     },
-  { mode: "more",     icon: "⋯",  label: "More"      },
 ];
 
 interface BottomActionRailProps {
@@ -47,50 +50,80 @@ export default function BottomActionRail({
   walkActive,
   onSelect,
 }: BottomActionRailProps) {
+  const [showMore, setShowMore] = React.useState(false);
+
   return (
     <div
-      className="w-full flex items-end justify-around px-2 pb-safe pt-2 bg-black/75 backdrop-blur-md border-t border-white/10"
+      className="w-full bg-black/75 backdrop-blur-md border-t border-white/10"
       style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
     >
-      {ACTIONS.map(({ mode, icon, label }) => {
-        const isActive = mode === activeMode;
-        const isWalkBtn = mode === "walk";
+      {/* Secondary actions (expanded) */}
+      {showMore && (
+        <div className="flex items-center justify-center gap-2 px-4 py-2 border-b border-white/5">
+          {SECONDARY_ACTIONS.map(({ mode, icon, label }) => (
+            <button
+              key={mode}
+              onClick={() => { onSelect(mode); setShowMore(false); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/8 text-white/70 hover:text-white text-xs font-medium transition active:scale-95"
+            >
+              <span className="text-sm">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
-        // Walk button shows different label based on walk state
-        const displayLabel = isWalkBtn
-          ? walkActive ? "Walking" : "Start Walk"
-          : label;
+      {/* Primary actions */}
+      <div className="flex items-end justify-around px-2 pt-2">
+        {PRIMARY_ACTIONS.map(({ mode, icon, label }) => {
+          const isActive = mode === activeMode;
+          const isWalkBtn = mode === "walk";
+          const displayLabel = isWalkBtn
+            ? walkActive ? "Walking" : "Start Walk"
+            : label;
 
-        return (
-          <button
-            key={mode}
-            onClick={() => onSelect(mode)}
-            className={[
-              "flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all",
-              "min-w-[52px] focus:outline-none active:scale-95",
-              isActive
-                ? "bg-white/15 text-white"
-                : "text-white/50 hover:text-white/80",
-              isWalkBtn && walkActive && !isActive
-                ? "text-green-400/70"
-                : "",
-            ].join(" ")}
-          >
-            <span className="text-xl leading-none">{icon}</span>
-            <span className="text-[10px] leading-none font-medium tracking-wide">
-              {displayLabel}
-            </span>
-            {/* active indicator dot */}
-            {isActive && (
-              <span className="w-1 h-1 rounded-full bg-white/70 mt-0.5" />
-            )}
-            {/* walk-active pulse dot when not in walk mode */}
-            {isWalkBtn && walkActive && !isActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mt-0.5" />
-            )}
-          </button>
-        );
-      })}
+          return (
+            <button
+              key={mode}
+              onClick={() => onSelect(mode)}
+              className={[
+                "flex flex-col items-center gap-1 px-5 py-2 rounded-xl transition-all",
+                "min-w-[64px] focus:outline-none active:scale-95",
+                isActive
+                  ? "bg-white/15 text-white"
+                  : "text-white/50 hover:text-white/80",
+                isWalkBtn && walkActive && !isActive
+                  ? "text-green-400/70"
+                  : "",
+              ].join(" ")}
+            >
+              <span className="text-2xl leading-none">{icon}</span>
+              <span className="text-[10px] leading-none font-medium tracking-wide">
+                {displayLabel}
+              </span>
+              {isActive && (
+                <span className="w-1 h-1 rounded-full bg-white/70 mt-0.5" />
+              )}
+              {isWalkBtn && walkActive && !isActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mt-0.5" />
+              )}
+            </button>
+          );
+        })}
+
+        {/* More toggle */}
+        <button
+          onClick={() => setShowMore(!showMore)}
+          className={[
+            "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all",
+            "min-w-[44px] focus:outline-none active:scale-95",
+            showMore ? "text-white/80" : "text-white/30 hover:text-white/50",
+          ].join(" ")}
+        >
+          <span className="text-lg leading-none">⋯</span>
+          <span className="text-[10px] leading-none font-medium">More</span>
+        </button>
+      </div>
     </div>
   );
 }
