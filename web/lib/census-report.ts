@@ -226,13 +226,42 @@ export function generateCensusReport(observations: Observation[], scanDurationMi
   // Recommendations
   const recommendations: Recommendation[] = [];
 
-  // Invasive removal
+  // Invasive removal — with native alternatives by ecological role
+  const NATIVE_ALTERNATIVES: Record<string, string[]> = {
+    // Invasive canopy trees → native canopy
+    "pyrus calleryana": ["Amelanchier arborea (Serviceberry)", "Cercis canadensis (Redbud)", "Cornus florida (Dogwood)"],
+    "ailanthus altissima": ["Quercus alba (White Oak)", "Liriodendron tulipifera (Tulip Poplar)", "Platanus occidentalis (Sycamore)"],
+    "paulownia tomentosa": ["Liriodendron tulipifera (Tulip Poplar)", "Quercus rubra (Red Oak)", "Acer rubrum (Red Maple)"],
+    "albizia julibrissin": ["Cercis canadensis (Redbud)", "Chionanthus virginicus (Fringe Tree)", "Amelanchier arborea (Serviceberry)"],
+    // Invasive shrubs → native shrubs
+    "ligustrum sinense": ["Lindera benzoin (Spicebush)", "Viburnum dentatum (Arrowwood)", "Callicarpa americana (Beautyberry)"],
+    "ligustrum japonicum": ["Morella cerifera (Wax Myrtle)", "Ilex glabra (Inkberry)", "Viburnum dentatum (Arrowwood)"],
+    "elaeagnus umbellata": ["Viburnum prunifolium (Blackhaw)", "Callicarpa americana (Beautyberry)", "Fothergilla gardenii (Dwarf Fothergilla)"],
+    "nandina domestica": ["Ilex verticillata (Winterberry)", "Fothergilla gardenii (Dwarf Fothergilla)", "Itea virginica (Sweetspire)"],
+    "rosa multiflora": ["Rosa carolina (Carolina Rose)", "Rosa palustris (Swamp Rose)", "Callicarpa americana (Beautyberry)"],
+    // Invasive vines → native ground cover or vines
+    "hedera helix": ["Packera aurea (Golden Ragwort)", "Polystichum acrostichoides (Christmas Fern)", "Phlox stolonifera (Creeping Phlox)"],
+    "lonicera japonica": ["Lonicera sempervirens (Coral Honeysuckle)", "Gelsemium sempervirens (Carolina Jessamine)", "Bignonia capreolata (Crossvine)"],
+    "wisteria sinensis": ["Wisteria frutescens (American Wisteria)", "Bignonia capreolata (Crossvine)", "Lonicera sempervirens (Coral Honeysuckle)"],
+    "pueraria montana": ["Campsis radicans (Trumpet Vine)", "Lonicera sempervirens (Coral Honeysuckle)", "Wisteria frutescens (American Wisteria)"],
+    "celastrus orbiculatus": ["Celastrus scandens (American Bittersweet)", "Lonicera sempervirens (Coral Honeysuckle)"],
+    // Invasive grass/ground cover → native ground layer
+    "microstegium vimineum": ["Carex pensylvanica (Pennsylvania Sedge)", "Packera aurea (Golden Ragwort)", "Chrysogonum virginianum (Green and Gold)"],
+    "lespedeza cuneata": ["Lespedeza virginica (Virginia Lespedeza)", "Rudbeckia hirta (Black-eyed Susan)", "Solidago sempervirens (Seaside Goldenrod)"],
+  };
+
   for (const inv of invasiveList) {
     const info = lookupSpecies(inv.scientificName);
+    const genus = inv.scientificName.toLowerCase().split(" ")[0];
+    // Try exact match first, then genus-level match
+    const alts = NATIVE_ALTERNATIVES[inv.scientificName.toLowerCase()]
+      ?? Object.entries(NATIVE_ALTERNATIVES).find(([k]) => k.startsWith(genus))?.[1];
+
     recommendations.push({
       priority: "high",
       action: `Remove ${inv.commonName} (${inv.scientificName})`,
       reason: info?.notes || "Invasive species that displaces natives",
+      species_suggestions: alts,
     });
   }
 

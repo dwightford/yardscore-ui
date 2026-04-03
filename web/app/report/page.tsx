@@ -64,6 +64,7 @@ function ReportContent() {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<CensusReport | null>(null);
   const [isPro, setIsPro] = useState(true); // default true to avoid flash
+  const [scoreHistory, setScoreHistory] = useState<{ score_value: number; computed_at: string }[]>([]);
 
   useEffect(() => {
     if (!token || !landUnitId) return;
@@ -72,7 +73,13 @@ function ReportContent() {
     // Check billing status
     apiFetch(token, `${API}/billing/status`)
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setIsPro(d.is_pro); })
+      .then((d) => { if (d) setIsPro(d.is_pro || d.is_admin); })
+      .catch(() => {});
+
+    // Fetch score history (Pro feature, loads in background)
+    apiFetch(token, `${API}/yardscore/${landUnitId}/history`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((h) => setScoreHistory(h))
       .catch(() => {});
 
     Promise.all([
@@ -86,14 +93,6 @@ function ReportContent() {
 
       // Generate census report from entities
       if (ents.length > 0) {
-        const observations = ents.map((e: Entity) => ({
-          species: e.species,
-          label: e.label,
-          category: e.entity_type,
-          confidence: 0.8,
-          lat: null,
-          lng: null,
-        }));
         // Expand by observation_count
         const expanded = ents.flatMap((e: Entity) =>
           Array(e.observation_count).fill(null).map(() => ({
@@ -134,7 +133,7 @@ function ReportContent() {
   const statusColor: Record<string, string> = { strong: "text-lime-300", moderate: "text-yellow-300", weak: "text-orange-400", absent: "text-red-400" };
 
   return (
-    <div className="min-h-screen bg-[#07110c]">
+    <div className="min-h-screen bg-[#07110c] pb-20">
       {/* Nav */}
       <div className="px-5 pt-14 pb-2 flex items-center justify-between">
         <a href="/dashboard" className="text-zinc-500 text-sm hover:text-white">← Dashboard</a>
@@ -210,6 +209,26 @@ function ReportContent() {
           })}
         </div>
 
+        {/* Score progress — simple one-liner when history exists */}
+        {scoreHistory.length > 1 && (() => {
+          const sorted = [...scoreHistory].sort((a, b) => new Date(a.computed_at).getTime() - new Date(b.computed_at).getTime());
+          const first = sorted[0];
+          const last = sorted[sorted.length - 1];
+          const delta = Math.round(last.score_value - first.score_value);
+          const firstDate = new Date(first.computed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+          return (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 mb-4 flex items-center justify-between">
+              <p className="text-xs text-zinc-400">
+                Since {firstDate} · {sorted.length} scans
+              </p>
+              <span className={`text-sm font-bold ${delta > 0 ? "text-lime-300" : delta < 0 ? "text-red-400" : "text-zinc-400"}`}>
+                {delta > 0 ? "↑" : delta < 0 ? "↓" : "→"} {Math.abs(delta)} pts
+              </span>
+            </div>
+          );
+        })()}
+
         {/* Species census */}
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
           <h3 className="text-sm font-semibold text-white mb-3">Species Census ({report.totalSpecies} species)</h3>
@@ -261,28 +280,35 @@ function ReportContent() {
                     <p className="text-[10px] text-zinc-500 mt-0.5">{rec.reason}</p>
                     {rec.species_suggestions && (
                       <div className="mt-1.5 space-y-1">
+                        <p className="text-[9px] text-zinc-500 uppercase tracking-wider">{rec.priority === "high" ? "Consider instead" : "Try"}</p>
                         {rec.species_suggestions.map((sp: string, j: number) => {
                           const name = sp.split(" (")[0];
                           const searchQuery = encodeURIComponent(name + " native plant");
                           return (
                             <div key={j} className="flex items-center gap-2">
                               <span className="text-[10px] text-lime-400">{sp}</span>
-                              <a
-                                href={`https://www.etsy.com/search?q=${searchQuery}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[9px] text-zinc-500 underline hover:text-lime-300"
-                              >
-                                Etsy
-                              </a>
-                              <a
-                                href={`https://www.naturehills.com/search?q=${encodeURIComponent(name)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[9px] text-zinc-500 underline hover:text-lime-300"
-                              >
-                                Nature Hills
-                              </a>
+                              {isPro ? (
+                                <>
+                                  <a
+                                    href={`https://www.etsy.com/search?q=${searchQuery}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[9px] text-zinc-500 underline hover:text-lime-300"
+                                  >
+                                    Etsy
+                                  </a>
+                                  <a
+                                    href={`https://www.naturehills.com/search?q=${encodeURIComponent(name)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[9px] text-zinc-500 underline hover:text-lime-300"
+                                  >
+                                    Nature Hills
+                                  </a>
+                                </>
+                              ) : (
+                                <span className="text-[9px] text-zinc-600">Pro: nursery links</span>
+                              )}
                             </div>
                           );
                         })}

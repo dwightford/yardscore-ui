@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "./providers";
 import FeedbackWidget from "./components/FeedbackWidget";
+import BottomTabs from "./components/BottomTabs";
 
 export const metadata: Metadata = {
   title: "YardScore",
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-[#07110c]">
         <Providers>
           {children}
+          <BottomTabs />
           <FeedbackWidget />
         </Providers>
       </body>

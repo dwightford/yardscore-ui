@@ -338,6 +338,7 @@ function ShareContent() {
                 <p className="text-[10px] text-zinc-600 mt-0.5">{rec.reason}</p>
                 {rec.species_suggestions && (
                   <div className="mt-1.5 space-y-1">
+                    <p className="text-[9px] text-zinc-500 uppercase tracking-wider">{rec.priority === "high" ? "Consider instead" : "Try"}</p>
                     {rec.species_suggestions.map((sp: string, j: number) => {
                       const name = sp.split(" (")[0];
                       const local = findLocalNurseries(name);

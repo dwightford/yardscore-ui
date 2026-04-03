@@ -1002,7 +1002,17 @@ export default function ScanPage() {
       )}
 
       {/* ── DONE STATE — Census Report ──────────────────────────────────────── */}
-      {status === "done" && (() => {
+      {status === "done" && observations.length === 0 && (
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#07110c] px-6 gap-4">
+          <p className="text-lg font-semibold text-white">No plants identified</p>
+          <p className="text-sm text-zinc-400 text-center">Walk your yard and tap on plants to identify them. The camera needs to see a plant before it can generate a census.</p>
+          <div className="flex gap-3 mt-4">
+            <button onClick={reset} className="px-6 py-3 bg-lime-300 text-zinc-950 font-bold rounded-xl text-sm">Try Again</button>
+            <a href="/dashboard" className="px-6 py-3 bg-white/10 text-white font-medium rounded-xl text-sm">Dashboard</a>
+          </div>
+        </div>
+      )}
+      {status === "done" && observations.length > 0 && (() => {
         const censusObs = observations.map(o => ({
           species: o.species,
           label: o.label,
@@ -1161,6 +1171,7 @@ export default function ScanPage() {
                         <p className="text-[10px] text-zinc-500 mt-0.5">{rec.reason}</p>
                         {rec.species_suggestions && (
                           <div className="mt-1.5 space-y-1">
+                            <p className="text-[9px] text-zinc-500 uppercase tracking-wider">{rec.priority === "high" ? "Consider instead" : "Try"}</p>
                             {rec.species_suggestions.map((sp: string, j: number) => {
                               const name = sp.split(" (")[0]; // "Quercus alba (White Oak)" → "Quercus alba"
                               const searchQuery = encodeURIComponent(name + " native plant");
