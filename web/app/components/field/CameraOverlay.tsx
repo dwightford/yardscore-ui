@@ -3,33 +3,29 @@
 /**
  * CameraOverlay
  *
- * Visual overlay rendered on top of the camera feed during an active walk.
- * Shows:
- *   - Breadcrumb trail dots (recent trail points as fading dots)
- *   - Anchor badges (confirmed reference points)
- *   - Plant labels (recently tagged subjects)
- *   - Area indicators (recently marked patches)
- *   - Light badge (when light was recorded this session)
+ * Soft visual overlay on the live camera scene during observation.
  *
- * All badges are non-interactive informational indicators.
- * They appear briefly after creation and fade to subtle persistence.
+ * Design rule: the garden is primary. The overlay is subordinate.
+ * Show only what the user needs to feel the system is working:
+ *   - a gentle pulse (observing)
+ *   - a brief flash when something is noted
+ *   - a soft count chip if items exist
+ *   - a queued indicator only when offline
  *
- * Since we don't have screen-space projection from GPS coords
- * (no AR), badges are shown as a compact edge-anchored list
- * rather than trying to position them over the camera view.
+ * No stacked badge walls. No trail counters. No AR clutter.
  */
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { TrailPoint } from "@/hooks/useWalkTrail";
 
-// ── Badge data types ─────────────────────────────────────────────────────────
+// ── Badge data types (kept for shell compatibility) ─────────────────────────
 
 export interface AnchorBadge {
   id: string;
   label: string;
   type: string;
   recent?: boolean;
-  queued?: boolean; // saved offline, not yet synced
+  queued?: boolean;
 }
 
 export interface SubjectBadge {
@@ -56,12 +52,10 @@ interface CameraOverlayProps {
   areas: AreaBadge[];
   lightRecorded: boolean;
   walkActive: boolean;
-  /** Number of observations queued offline, waiting to sync */
   queuedCount?: number;
 }
 
 export default function CameraOverlay({
-  trail,
   anchors,
   subjects,
   areas,
@@ -71,125 +65,71 @@ export default function CameraOverlay({
 }: CameraOverlayProps) {
   if (!walkActive) return null;
 
-  const hasAnything = anchors.length > 0 || subjects.length > 0 || areas.length > 0;
+  const totalNoted = anchors.length + subjects.length + areas.length + (lightRecorded ? 1 : 0);
+
+  // Find the most recent item for the flash chip
+  const recentItem = [...anchors, ...subjects, ...areas]
+    .filter((b) => b.recent)
+    .pop();
 
   return (
     <>
-      {/* ── Breadcrumb trail indicator (bottom-left) ──────────────────── */}
-      {trail.length > 0 && (
-        <div className="absolute bottom-24 left-3 flex items-center gap-1 pointer-events-none">
-          {/* Recent trail dots */}
-          {trail.slice(-8).map((_, i, arr) => (
-            <span
-              key={i}
-              className="rounded-full bg-green-400"
-              style={{
-                width: 4,
-                height: 4,
-                opacity: 0.2 + (i / arr.length) * 0.5,
-              }}
-            />
-          ))}
-          <span className="text-green-500/60 text-[9px] ml-1 tabular-nums">
-            {trail.length}
-          </span>
+      {/* ── Soft observing pulse (top-left) ────────────────────────────── */}
+      <div className="absolute top-14 left-3 pointer-events-none">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400/60 animate-pulse" />
+          <span className="text-green-400/40 text-[9px] font-medium">Observing</span>
         </div>
-      )}
-
-      {/* ── Session badges (top-right, stacked) ──────────────────────── */}
-      {hasAnything && (
-        <div className="absolute top-14 right-3 flex flex-col gap-1.5 items-end pointer-events-none max-w-[140px]">
-          {/* Anchors */}
-          {anchors.map((a) => (
-            <Badge
-              key={a.id}
-              icon="📍"
-              label={a.label}
-              color="amber"
-              recent={a.recent}
-              queued={a.queued}
-            />
-          ))}
-          {/* Subjects */}
-          {subjects.slice(-4).map((s) => (
-            <Badge
-              key={s.id}
-              icon="🌳"
-              label={s.species || s.label}
-              color="green"
-              recent={s.recent}
-              queued={s.queued}
-            />
-          ))}
-          {/* Areas */}
-          {areas.slice(-3).map((a) => (
-            <Badge
-              key={a.id}
-              icon="🌿"
-              label={a.label}
-              color="lime"
-              recent={a.recent}
-              queued={a.queued}
-            />
-          ))}
-          {/* Light */}
-          {lightRecorded && (
-            <Badge icon="☀️" label="Light recorded" color="yellow" />
-          )}
-        </div>
-      )}
-
-      {/* ── Walk pulse indicator (top-left) ──────────────────────────── */}
-      <div className="absolute top-14 left-3 flex items-center gap-1.5 pointer-events-none">
-        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-green-400/70 text-[10px] font-medium">Recording</span>
-        {queuedCount > 0 && (
-          <span className="ml-2 flex items-center gap-1 bg-orange-900/60 border border-orange-600/40 rounded-full px-1.5 py-0.5">
-            <span className="text-orange-400 text-[9px] font-medium">{queuedCount} queued</span>
-          </span>
-        )}
       </div>
+
+      {/* ── Recent item flash (top-right, fades) ──────────────────────── */}
+      {recentItem && (
+        <RecentFlash label={recentItem.label} />
+      )}
+
+      {/* ── Soft count chip (bottom-left, above action rail) ──────────── */}
+      {totalNoted > 0 && (
+        <div className="absolute bottom-20 left-3 pointer-events-none">
+          <div className="bg-black/30 backdrop-blur-sm rounded-full px-2.5 py-1 flex items-center gap-1.5">
+            <span className="text-white/40 text-[9px] font-medium tabular-nums">
+              {totalNoted} noted
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Queued indicator (only when offline items exist) ──────────── */}
+      {queuedCount > 0 && (
+        <div className="absolute top-14 right-3 pointer-events-none">
+          <div className="bg-orange-900/40 backdrop-blur-sm border border-orange-600/30 rounded-full px-2 py-0.5">
+            <span className="text-orange-400/60 text-[9px] font-medium">{queuedCount} queued</span>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-// ── Badge pill ───────────────────────────────────────────────────────────────
+// ── Recent flash chip — shows briefly then fades ─────────────────────────────
 
-const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-  amber:  { bg: "bg-amber-900/60",  border: "border-amber-600/40",  text: "text-amber-300" },
-  green:  { bg: "bg-green-900/60",  border: "border-green-600/40",  text: "text-green-300" },
-  lime:   { bg: "bg-lime-900/60",   border: "border-lime-600/40",   text: "text-lime-300" },
-  yellow: { bg: "bg-yellow-900/60", border: "border-yellow-600/40", text: "text-yellow-300" },
-};
+function RecentFlash({ label }: { label: string }) {
+  const [visible, setVisible] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
-function Badge({
-  icon,
-  label,
-  color,
-  recent,
-  queued,
-}: {
-  icon: string;
-  label: string;
-  color: string;
-  recent?: boolean;
-  queued?: boolean;
-}) {
-  const c = COLOR_MAP[color] ?? COLOR_MAP.green;
+  useEffect(() => {
+    setVisible(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setVisible(false), 3000);
+    return () => clearTimeout(timerRef.current);
+  }, [label]);
+
+  if (!visible) return null;
+
   return (
-    <div
-      className={[
-        "flex items-center gap-1 px-2 py-1 rounded-full backdrop-blur-sm text-[10px] font-medium truncate max-w-full",
-        c.bg, c.text,
-        queued
-          ? "border border-dashed border-orange-500/50 opacity-50"
-          : `border ${c.border}`,
-        recent && !queued ? "opacity-100 ring-1 ring-white/20" : "",
-        !recent && !queued ? "opacity-70" : "",
-      ].join(" ")}
-    >
-      <span className="text-xs leading-none flex-none">{icon}</span>
-      <span className="truncate">{label}</span>
+    <div className="absolute top-14 right-3 pointer-events-none">
+      <div className="bg-black/30 backdrop-blur-sm border border-white/10 rounded-full px-2.5 py-1 max-w-[160px]">
+        <span className="text-white/60 text-[10px] font-medium truncate block">{label}</span>
+      </div>
     </div>
   );
 }

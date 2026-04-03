@@ -676,7 +676,10 @@ function ContextChip({ value, label }: { value: string; label: string }) {
   );
 }
 
-// ── Screen 3: Anchor Suggestion Card ─────────────────────────────────────────
+// ── Prompt cards — calm, brief, skippable ────────────────────────────────────
+//
+// Design rule from canon: "brief, skippable, calm, context-aware"
+// These should feel like a quiet nudge, not a dialog box.
 
 interface AnchorSuggestion {
   type: string;
@@ -700,45 +703,42 @@ function AnchorSuggestionCard({
   const [selected, setSelected] = useState(suggestions[0]);
 
   return (
-    <div className="bg-stone-950/90 backdrop-blur-md border border-white/10 rounded-xl px-4 py-4 shadow-2xl">
-      <p className="text-stone-300 text-sm leading-relaxed mb-3">
-        Adding another reference point helps your map stay accurate.
-        What&apos;s nearby?
+    <div className="bg-black/50 backdrop-blur-lg border border-white/[0.08] rounded-2xl px-4 py-3.5">
+      <p className="text-white/60 text-xs mb-3">
+        This looks like a good reference point. What is it?
       </p>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-1.5 mb-3">
         {suggestions.map((s) => (
           <button
             key={s.type}
             onClick={() => setSelected(s)}
             className={[
-              "flex-1 py-2.5 px-2 rounded-xl text-xs font-medium transition text-center",
+              "flex-1 py-2 px-1.5 rounded-xl text-[10px] font-medium transition text-center",
               selected.type === s.type
-                ? "bg-amber-700/60 border border-amber-500/50 text-amber-200"
-                : "bg-white/6 text-stone-400 hover:text-white border border-transparent",
+                ? "bg-white/10 text-white"
+                : "text-white/30 hover:text-white/60",
             ].join(" ")}
           >
-            <span className="block text-base mb-0.5">{s.icon}</span>
+            <span className="block text-sm mb-0.5">{s.icon}</span>
             {s.label}
           </button>
         ))}
       </div>
 
-      {error && (
-        <p className="text-red-400 text-xs mb-2">{error}</p>
-      )}
+      {error && <p className="text-red-400/70 text-[10px] mb-2">{error}</p>}
 
       <div className="flex gap-2">
         <button
           onClick={() => onSave(selected.type, selected.label)}
           disabled={saving}
-          className="flex-1 bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold rounded-xl py-2.5 text-sm transition disabled:opacity-60"
+          className="flex-1 bg-white/10 hover:bg-white/15 active:scale-[0.98] text-white text-xs font-medium rounded-xl py-2 transition disabled:opacity-50"
         >
-          {saving ? "Saving..." : `Save ${selected.label}`}
+          {saving ? "..." : "Save"}
         </button>
         <button
           onClick={onSkip}
-          className="px-4 text-stone-500 hover:text-stone-300 text-sm transition"
+          className="px-3 text-white/30 hover:text-white/50 text-xs transition"
         >
           Skip
         </button>
@@ -747,35 +747,15 @@ function AnchorSuggestionCard({
   );
 }
 
-// ── Screen 4: Capture Suggestion Card ────────────────────────────────────────
-
 function CaptureSuggestionCard({ onDismiss }: { onDismiss: () => void }) {
   return (
-    <div className="bg-stone-950/90 backdrop-blur-md border border-white/10 rounded-xl px-4 py-4 shadow-2xl">
-      <p className="text-stone-300 text-sm leading-relaxed mb-3">
-        See something worth noting? Use the buttons below.
+    <div className="bg-black/50 backdrop-blur-lg border border-white/[0.08] rounded-2xl px-4 py-3">
+      <p className="text-white/50 text-xs leading-relaxed">
+        See something? Tap <span className="text-white/70">Identify</span> or <span className="text-white/70">Area</span> below.
       </p>
-
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-green-900/30 border border-green-700/30 rounded-xl px-3 py-2.5 text-center">
-          <span className="text-base block mb-0.5">🔍</span>
-          <p className="text-green-300 text-xs font-medium">Identify</p>
-          <p className="text-stone-500 text-[10px] mt-0.5">
-            A tree, shrub, or plant
-          </p>
-        </div>
-        <div className="bg-lime-900/30 border border-lime-700/30 rounded-xl px-3 py-2.5 text-center">
-          <span className="text-base block mb-0.5">🌿</span>
-          <p className="text-lime-300 text-xs font-medium">Mark Area</p>
-          <p className="text-stone-500 text-[10px] mt-0.5">
-            A bed, lawn, or patch
-          </p>
-        </div>
-      </div>
-
       <button
         onClick={onDismiss}
-        className="w-full text-stone-500 hover:text-stone-300 text-xs py-1 transition"
+        className="mt-2 text-white/25 hover:text-white/40 text-[10px] transition"
       >
         Got it
       </button>
@@ -783,39 +763,19 @@ function CaptureSuggestionCard({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-// ── Screen 4b: Light Suggestion Card ─────────────────────────────────────────
-
 function LightSuggestionCard({ onDismiss }: { onDismiss: () => void }) {
   const hour = new Date().getHours();
   const timeLabel =
     hour < 10 ? "morning" : hour < 14 ? "midday" : hour < 17 ? "afternoon" : "evening";
-  const seasonHint = (() => {
-    const month = new Date().getMonth();
-    if (month >= 2 && month <= 4) return "Spring light shifts fast — even one reading helps.";
-    if (month >= 5 && month <= 7) return "Summer light is strongest now. Good time to record it.";
-    if (month >= 8 && month <= 10) return "Fall canopy is changing — light readings now are especially useful.";
-    return "Winter light is different. Recording it helps with year-round planning.";
-  })();
 
   return (
-    <div className="bg-stone-950/90 backdrop-blur-md border border-white/10 rounded-xl px-4 py-4 shadow-2xl">
-      <div className="flex items-start gap-3 mb-2">
-        <span className="text-2xl flex-none mt-0.5">☀️</span>
-        <div>
-          <p className="text-yellow-200 text-sm font-medium">
-            Good time to record {timeLabel} light
-          </p>
-          <p className="text-stone-400 text-xs mt-1 leading-relaxed">
-            Tap the Light button below to note how much sun this spot gets
-            right now. This helps build your light map.
-          </p>
-        </div>
-      </div>
-      <p className="text-stone-600 text-[10px] mb-3 ml-9">{seasonHint}</p>
-
+    <div className="bg-black/50 backdrop-blur-lg border border-white/[0.08] rounded-2xl px-4 py-3">
+      <p className="text-white/50 text-xs leading-relaxed">
+        Good {timeLabel} light here. Tap <span className="text-yellow-300/60">Light</span> to record it.
+      </p>
       <button
         onClick={onDismiss}
-        className="w-full text-stone-500 hover:text-stone-300 text-xs py-1 transition"
+        className="mt-2 text-white/25 hover:text-white/40 text-[10px] transition"
       >
         Got it
       </button>
