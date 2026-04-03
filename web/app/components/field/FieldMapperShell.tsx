@@ -582,6 +582,45 @@ export default function FieldMapperShell({
     setPanelOpen(false);
   }, [isLive, token, landUnitId, locationRef, flashStrip, queueItem]);
 
+  const handleSaveSubjectAnchor = useCallback(async (subjectType: string, label: string, anchorType: string) => {
+    const coords = gpsCoords();
+    if (isLive) {
+      try {
+        const result = await fieldApi.saveSubjectAnchor(token!, landUnitId!, {
+          subject_type: subjectType,
+          label,
+          anchor_type: anchorType,
+          ...coords,
+          ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
+        });
+        setSubjectBadges((prev) => [...prev, { id: result.subject.id, label, type: subjectType, recent: true }]);
+        setAnchorBadges((prev) => [...prev, { id: result.anchor.id, label, type: anchorType, recent: true }]);
+      } catch (e: any) {
+        if (isNetworkError(e)) {
+          // Queue as separate items for offline replay
+          queueItem("subject", { landUnitId: landUnitId!, data: { subject_type: subjectType, label, ...coords, ...(walkSessionId ? { walk_session_id: walkSessionId } : {}) } });
+          queueItem("anchor", { landUnitId: landUnitId!, data: { anchor_type: anchorType, label, ...coords, ...(walkSessionId ? { walk_session_id: walkSessionId } : {}) } });
+          setSubjectBadges((prev) => [...prev, { id: `queued-${Date.now()}`, label, type: subjectType, recent: true, queued: true }]);
+          setAnchorBadges((prev) => [...prev, { id: `queued-${Date.now()}`, label, type: anchorType, recent: true, queued: true }]);
+          flashStrip("queued");
+          setSubjectCount((n) => n + 1);
+          setAnchorCount((n) => n + 1);
+          setPanelOpen(false);
+          return;
+        }
+        setError(e.message ?? "Could not save");
+        return;
+      }
+    } else {
+      setSubjectBadges((prev) => [...prev, { id: `local-${Date.now()}`, label, type: subjectType, recent: true }]);
+      setAnchorBadges((prev) => [...prev, { id: `local-${Date.now()}`, label, type: anchorType, recent: true }]);
+    }
+    setSubjectCount((n) => n + 1);
+    setAnchorCount((n) => n + 1);
+    flashStrip("anchor_confirmed");
+    setPanelOpen(false);
+  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
+
   const handleDismissReview = useCallback(() => {
     setReviewData(null);
     clearTrail();
@@ -676,6 +715,7 @@ export default function FieldMapperShell({
               onSaveAnchor={handleSaveAnchor}
               onSaveArea={handleSaveArea}
               onTagSubject={handleTagSubject}
+              onSaveSubjectAnchor={handleSaveSubjectAnchor}
               onSaveLight={handleSaveLight}
               onClose={handleClosePanel}
               captureFrame={captureFrame}

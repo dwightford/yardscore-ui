@@ -40,6 +40,7 @@ export interface ContextPanelProps {
   onSaveAnchor: (type: string, label: string) => void;
   onSaveArea: (type: string, label: string) => void;
   onTagSubject: (type: string, label: string) => void;
+  onSaveSubjectAnchor: (subjectType: string, label: string, anchorType: string) => void;
   onSaveLight: (direction: string, condition: string) => void;
   onClose: () => void;
   /** Capture a frame from the live camera for plant ID */
@@ -131,15 +132,18 @@ function WalkPanel({ state, onStart, onEnd }: {
 
 function IdentifyPanel({
   onTag,
+  onTagAsAnchor,
   captureFrame,
   onIdentify,
 }: {
   onTag: (type: string, label: string) => void;
+  onTagAsAnchor: (subjectType: string, label: string, anchorType: string) => void;
   captureFrame?: () => Promise<Blob | null>;
   onIdentify?: (result: PlantIdResult) => void;
 }) {
   const [label, setLabel] = useState("");
   const [type, setType] = useState("tree");
+  const [useAsAnchor, setUseAsAnchor] = useState(false);
   const [identifying, setIdentifying] = useState(false);
   const [idResult, setIdResult] = useState<PlantIdResult | null>(null);
   const [idError, setIdError] = useState<string | null>(null);
@@ -165,6 +169,18 @@ function IdentifyPanel({
     } finally {
       setIdentifying(false);
     }
+  };
+
+  const handleSave = () => {
+    if (useAsAnchor) {
+      const anchorType = type === "tree" ? "big_tree" : "custom";
+      onTagAsAnchor(type, label, anchorType);
+    } else {
+      onTag(type, label);
+    }
+    setLabel("");
+    setIdResult(null);
+    setUseAsAnchor(false);
   };
 
   return (
@@ -223,11 +239,26 @@ function IdentifyPanel({
         placeholder="Optional: describe it (e.g. tall oak by fence)"
         className="bg-white/8 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-stone-600 focus:outline-none focus:border-green-500/50"
       />
+
+      {/* Use as anchor toggle */}
       <button
-        onClick={() => { onTag(type, label); setLabel(""); setIdResult(null); }}
+        onClick={() => setUseAsAnchor(!useAsAnchor)}
+        className={[
+          "flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium transition",
+          useAsAnchor
+            ? "bg-amber-700/40 border border-amber-500/40 text-amber-200"
+            : "bg-white/5 border border-white/10 text-stone-500 hover:text-stone-300",
+        ].join(" ")}
+      >
+        <span className="text-sm">📍</span>
+        {useAsAnchor ? "Will also use as reference point" : "Also use as reference point?"}
+      </button>
+
+      <button
+        onClick={handleSave}
         className="w-full bg-green-700 hover:bg-green-600 active:scale-95 text-white font-semibold rounded-xl py-3 transition"
       >
-        Note This Plant
+        {useAsAnchor ? "Note Plant + Set Anchor" : "Note This Plant"}
       </button>
     </div>
   );
@@ -434,6 +465,7 @@ export default function ContextPanel({
   onSaveAnchor,
   onSaveArea,
   onTagSubject,
+  onSaveSubjectAnchor,
   onSaveLight,
   onClose,
   captureFrame,
@@ -474,7 +506,7 @@ export default function ContextPanel({
 
         {/* Content */}
         {mode === "walk"     && <WalkPanel state={walkState} onStart={onStartWalk} onEnd={onEndWalk} />}
-        {mode === "identify" && <IdentifyPanel onTag={onTagSubject} captureFrame={captureFrame} onIdentify={onIdentify} />}
+        {mode === "identify" && <IdentifyPanel onTag={onTagSubject} onTagAsAnchor={onSaveSubjectAnchor} captureFrame={captureFrame} onIdentify={onIdentify} />}
         {mode === "anchor"   && <AnchorPanel onSave={onSaveAnchor} />}
         {mode === "area"     && <AreaPanel onSave={onSaveArea} />}
         {mode === "light"    && <LightPanel onSave={onSaveLight} />}

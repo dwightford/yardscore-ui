@@ -201,6 +201,34 @@ export async function saveSubject(
   return res.json();
 }
 
+// ── Subject + Anchor (one action) ───────────────────────────────────────────
+
+export async function saveSubjectAnchor(
+  token: string,
+  landUnitId: string,
+  data: {
+    subject_type: string;
+    label: string;
+    anchor_type: string;
+    device_lat: number | null;
+    device_lng: number | null;
+    accuracy_m: number | null;
+    walk_session_id?: string;
+  },
+): Promise<{ subject: Subject; anchor: Anchor }> {
+  const res = await apiFetch(
+    token,
+    `${API}/land_units/${landUnitId}/subject-anchors`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Patches ──────────────────────────────────────────────────────────────────
 
 export async function savePatch(
