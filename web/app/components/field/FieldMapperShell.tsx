@@ -273,10 +273,7 @@ export default function FieldMapperShell({
     setShowInactivePrompt(false);
   }, []);
 
-  const handleInactiveEnd = useCallback(() => {
-    setShowInactivePrompt(false);
-    handleEndWalk();
-  }, [handleEndWalk]);
+  // handleInactiveEnd is defined after handleEndWalk (below)
 
   // ── Mid-walk readiness re-poll (live mode) ───────────────────────────────
 
@@ -495,6 +492,11 @@ export default function FieldMapperShell({
     stopRecording();
     setPanelOpen(false);
   }, [isLive, token, landUnitId, walkSessionId, walkStartedAt, anchorCount, subjectCount, areaCount, lightSavedThisSession, trail, stopGps, stopRecording]);
+
+  const handleInactiveEnd = useCallback(() => {
+    setShowInactivePrompt(false);
+    handleEndWalk();
+  }, [handleEndWalk]);
 
   const handleSaveAnchor = useCallback(async (type: string, label: string) => {
     const coords = gpsCoords();
