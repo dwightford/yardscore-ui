@@ -3,19 +3,19 @@
 /**
  * /walk — Field Mapper entry point
  *
- * Authenticated users: resolves land units and renders FieldMapperShell
- * in live API mode (real walk sessions, GPS, persistence, PlantNet ID).
+ * Authenticated users: resolves land units, then renders the guided
+ * walk flow (origin anchor → begin walk → shell with prompts → review).
  * Multi-property: shows a selector when the user has more than one property.
  *
- * Unauthenticated / no land units: renders FieldMapperShell with a
- * mock seed for demo purposes.
+ * Unauthenticated / no land units: renders the guided walk flow in
+ * demo mode with local state only.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import FieldMapperShell from "../components/field/FieldMapperShell";
+import GuidedWalkFlow from "../components/field/GuidedWalkFlow";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -24,16 +24,6 @@ interface LandUnit {
   name: string;
   address?: string | null;
 }
-
-const DEMO_SEED = {
-  walkActive: true,
-  walkStartedAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
-  hasOriginAnchor: true,
-  anchorCount: 2,
-  areaCount: 1,
-  subjectCount: 1,
-  initialStripState: "light_suggested" as const,
-};
 
 export default function WalkPage() {
   const { data: session, status } = useSession();
@@ -54,7 +44,7 @@ export default function WalkPage() {
       .then((data) => {
         const units: LandUnit[] = Array.isArray(data) ? data : data.land_units ?? [];
         setLandUnits(units);
-        if (units.length > 0) setSelectedId(units[0].id);
+        if (units.length === 1) setSelectedId(units[0].id);
       })
       .catch(() => {})
       .finally(() => setResolved(true));
@@ -76,7 +66,7 @@ export default function WalkPage() {
     );
   }
 
-  // ── Multi-property selector (shown when > 1 property, before entering shell)
+  // ── Multi-property selector (shown when > 1 property, before entering flow)
   if (token && landUnits.length > 1 && !selectedId) {
     return (
       <div className="h-[100dvh] bg-stone-950 flex flex-col items-center justify-center px-6 gap-4">
@@ -99,41 +89,20 @@ export default function WalkPage() {
     );
   }
 
-  // ── Authenticated with a resolved land unit → live mode ───────────────────
+  // ── Authenticated with a resolved land unit → guided walk flow ────────────
   if (token && selectedId) {
     return (
-      <div className="relative h-[100dvh]">
-        {/* Property switcher (compact, only if multiple) */}
-        {landUnits.length > 1 && (
-          <div className="absolute top-0 right-0 z-30 p-2">
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="bg-black/60 backdrop-blur-sm border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 focus:outline-none"
-            >
-              {landUnits.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name || u.address || u.id}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <FieldMapperShell
-          token={token}
-          landUnitId={selectedId}
-          propertyLabel={propertyLabel}
-          onViewProperty={handleViewProperty}
-        />
-      </div>
+      <GuidedWalkFlow
+        token={token}
+        landUnitId={selectedId}
+        propertyLabel={propertyLabel}
+        onViewProperty={handleViewProperty}
+      />
     );
   }
 
-  // ── Demo fallback ─────────────────────────────────────────────────────────
+  // ── Demo fallback → guided walk flow without credentials ──────────────────
   return (
-    <FieldMapperShell
-      seed={DEMO_SEED}
-      propertyLabel="108 Buena Vista Way"
-    />
+    <GuidedWalkFlow propertyLabel="108 Buena Vista Way" />
   );
 }

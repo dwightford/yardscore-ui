@@ -82,6 +82,16 @@ interface OutcomeProfile {
   active: boolean;
 }
 
+interface WalkHistoryEntry {
+  id: string;
+  status: string;
+  started_at: string;
+  ended_at?: string | null;
+  breadcrumb_count?: number;
+  subject_count?: number;
+  patch_count?: number;
+}
+
 // ── Layer config ─────────────────────────────────────────────────────────────
 
 const LAYER_ORDER = [
@@ -343,6 +353,9 @@ export default function PropertyPage() {
   const [profilesLoading, setProfilesLoading] = useState(true);
   const [togglingProfile, setTogglingProfile] = useState<string | null>(null);
 
+  const [walks, setWalks] = useState<WalkHistoryEntry[]>([]);
+  const [walksLoading, setWalksLoading] = useState(true);
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const fetchLandUnit = useCallback(async () => {
@@ -418,13 +431,24 @@ export default function PropertyPage() {
     setProfilesLoading(false);
   }, [token, id]);
 
+  const fetchWalks = useCallback(async () => {
+    if (!token) return;
+    setWalksLoading(true);
+    try {
+      const res = await apiFetch(token, `${API}/land_units/${id}/walk-sessions`);
+      if (res.ok) setWalks(await res.json());
+    } catch {}
+    setWalksLoading(false);
+  }, [token, id]);
+
   useEffect(() => {
     fetchLandUnit();
     fetchStructure();
     fetchSignals();
     fetchReadiness();
     fetchProfiles();
-  }, [fetchLandUnit, fetchStructure, fetchSignals, fetchReadiness, fetchProfiles]);
+    fetchWalks();
+  }, [fetchLandUnit, fetchStructure, fetchSignals, fetchReadiness, fetchProfiles, fetchWalks]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -708,7 +732,71 @@ export default function PropertyPage() {
           )}
         </section>
 
-        {/* ── 6. Quick Actions ────────────────────────────────────────────── */}
+        {/* ── 6. Walk History ─────────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
+              Walk History
+            </h2>
+            <a
+              href="/walk"
+              className="text-[10px] text-lime-400 hover:text-lime-300 transition-colors"
+            >
+              Start a walk &rarr;
+            </a>
+          </div>
+
+          {walksLoading ? (
+            <SectionSkeleton />
+          ) : walks.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+              <p className="text-zinc-500 text-sm">No walks yet.</p>
+              <p className="text-zinc-600 text-xs mt-1">
+                Walk your property to start building its memory.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {walks.map((w) => {
+                const d = new Date(w.started_at);
+                const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                const timeStr = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+                const items = (w.subject_count ?? 0) + (w.patch_count ?? 0);
+                const isActive = w.status === "active";
+                return (
+                  <div
+                    key={w.id}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-white/5 bg-white/[0.02]"
+                  >
+                    <div className="flex-none">
+                      {isActive ? (
+                        <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                      ) : (
+                        <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 inline-block" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-zinc-200">
+                        {dateStr} <span className="text-zinc-500">{timeStr}</span>
+                        {isActive && <span className="text-green-400 ml-1.5 text-[10px]">in progress</span>}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-zinc-500 flex-none">
+                      {(w.breadcrumb_count ?? 0) > 0 && (
+                        <span>{w.breadcrumb_count} pts</span>
+                      )}
+                      {items > 0 && (
+                        <span>{items} noted</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ── 7. Quick Actions ────────────────────────────────────────────── */}
         <section>
           <div className="grid grid-cols-4 gap-2">
             <a

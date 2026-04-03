@@ -28,10 +28,11 @@ import BottomActionRail, { type ActionMode } from "./BottomActionRail";
 import ContextPanel, { type WalkState } from "./ContextPanel";
 import CameraFeed, { type CameraFeedHandle } from "./CameraFeed";
 import CameraOverlay, { type AnchorBadge, type SubjectBadge, type AreaBadge } from "./CameraOverlay";
-import WalkReview, { type WalkReviewData, type MapPin } from "./WalkReview";
+import WalkReview, { type WalkReviewData, type MapPin, type MemoryStage } from "./WalkReview";
 import { useGps } from "@/hooks/useGps";
 import { useWalkTrail } from "@/hooks/useWalkTrail";
 import * as fieldApi from "@/lib/field-api";
+import { enqueue, getQueue, dequeue, pendingCount, expireStale, isNetworkError, canRetryNow, recordFlushFailure, resetBackoff, type QueuedItemType } from "@/lib/offline-queue";
 
 // ── Seed state type ───────────────────────────────────────────────────────────
 
@@ -51,6 +52,8 @@ export interface FieldMapperShellProps {
   token?: string;
   landUnitId?: string;
   onViewProperty?: () => void;
+  /** Increment to trigger a property memory re-fetch (e.g. after external anchor save) */
+  refreshTrigger?: number;
 }
 
 // ── Shell ─────────────────────────────────────────────────────────────────────
@@ -61,6 +64,7 @@ export default function FieldMapperShell({
   token,
   landUnitId,
   onViewProperty,
+  refreshTrigger = 0,
 }: FieldMapperShellProps) {
   const isLive = Boolean(token && landUnitId);
   const router = useRouter();
@@ -101,6 +105,7 @@ export default function FieldMapperShell({
   const [transientStrip, setTransientStrip] = useState<StripState | null>(null);
   const [reviewData, setReviewData] = useState<WalkReviewData | null>(null);
   const [nextObs, setNextObs] = useState<fieldApi.NextObservation | null>(null);
+  const [memStage, setMemStage] = useState<fieldApi.MemoryStage | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Readiness-driven strip state ──────────────────────────────────────────
@@ -108,6 +113,8 @@ export default function FieldMapperShell({
   const derivedStripState = useMemo((): StripState => {
     if (!walkActive) {
       if (seed?.initialStripState && !walkSessionId) return seed.initialStripState;
+      if (queuedCount > 0) return "queued";
+      if (memStage === "forming") return "memory_forming";
       return "no_walk";
     }
     if (anchorCount === 0) return "anchor_suggested";
@@ -117,7 +124,7 @@ export default function FieldMapperShell({
     const hour = new Date().getHours();
     if (hour >= 12 && hour < 17 && !lightSavedThisSession) return "light_suggested";
     return "walk_active";
-  }, [walkActive, anchorCount, lightSavedThisSession, seed?.initialStripState, walkSessionId, nextObs]);
+  }, [walkActive, anchorCount, lightSavedThisSession, seed?.initialStripState, walkSessionId, nextObs, memStage, queuedCount]);
 
   const stripState = transientStrip ?? derivedStripState;
 
@@ -135,15 +142,17 @@ export default function FieldMapperShell({
     return () => clearTimeout(t);
   }, [error]);
 
-  // ── Fetch readiness + property memory on mount (live mode) ────────────────
+  // ── Fetch readiness + property memory on mount + refreshTrigger (live mode) ─
 
   useEffect(() => {
     if (!isLive) return;
     // Readiness
     fieldApi.fetchNextObservation(token!, landUnitId!).then(setNextObs).catch(() => {});
-    // Hydrate badge state from existing property memory
+    // Hydrate badge state + memory stage from existing property memory
     fieldApi.fetchPropertyMemory(token!, landUnitId!).then((mem) => {
       if (!mem) return;
+      setMemStage(mem.memory_stage);
+      setAnchorCount(mem.anchor_count);
       setAnchorBadges(
         mem.anchors.map((a) => ({ id: a.id, label: a.label, type: a.anchor_type })),
       );
@@ -159,7 +168,7 @@ export default function FieldMapperShell({
       );
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLive]);
+  }, [isLive, refreshTrigger]);
 
   // ── Resume active walk on mount (live mode) ───────────────────────────────
 
@@ -184,6 +193,128 @@ export default function FieldMapperShell({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive]);
+
+  // ── Breadcrumb flush (live mode) ──────────────────────────────────────────
+
+  const flushedCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!isLive || !walkSessionId || !walkActive) return;
+    const interval = setInterval(() => {
+      const unflushed = trail.slice(flushedCountRef.current);
+      if (unflushed.length === 0) return;
+      const batch = unflushed.slice(0, 50); // cap batch size
+      const points = batch.map((p, i) => ({
+        seq: flushedCountRef.current + i,
+        device_lat: p.lat,
+        device_lng: p.lng,
+        heading_degrees: p.heading,
+        accuracy_m: p.accuracy,
+        movement_confidence: 0.5,
+      }));
+      fieldApi
+        .postBreadcrumbs(token!, walkSessionId, points)
+        .then((res) => {
+          flushedCountRef.current += res.appended;
+        })
+        .catch((e) => {
+          if (isNetworkError(e)) {
+            // Queue breadcrumbs for later flush — advance counter so we don't re-queue
+            queueItem("breadcrumbs", { walkSessionId, points });
+            flushedCountRef.current += points.length;
+          }
+        });
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [isLive, token, walkSessionId, walkActive, trail, queueItem]);
+
+  // Reset flush counter when walk ends
+  useEffect(() => {
+    if (!walkActive) flushedCountRef.current = 0;
+  }, [walkActive]);
+
+  // ── Mid-walk readiness re-poll (live mode) ───────────────────────────────
+
+  useEffect(() => {
+    if (!isLive || !walkActive) return;
+    const interval = setInterval(() => {
+      fieldApi.fetchNextObservation(token!, landUnitId!).then(setNextObs).catch(() => {});
+    }, 90_000);
+    return () => clearInterval(interval);
+  }, [isLive, token, landUnitId, walkActive]);
+
+  // ── Offline queue state + flush ────────────────────────────────────────────
+
+  const [queuedCount, setQueuedCount] = useState(() => {
+    expireStale(); // drop items older than 24h on mount
+    return pendingCount();
+  });
+
+  const queueItem = useCallback((type: QueuedItemType, payload: any) => {
+    enqueue(type, payload);
+    setQueuedCount(pendingCount());
+  }, []);
+
+  const flushQueue = useCallback(async () => {
+    if (!isLive) return;
+    if (!canRetryNow()) return; // backoff not expired yet
+    const items = getQueue();
+    if (items.length === 0) return;
+
+    let flushed = 0;
+    for (const item of items) {
+      try {
+        const p = item.payload;
+        switch (item.type) {
+          case "anchor":
+            await fieldApi.saveAnchor(token!, p.landUnitId, p.data);
+            break;
+          case "subject":
+            await fieldApi.saveSubject(token!, p.landUnitId, p.data);
+            break;
+          case "patch":
+            await fieldApi.savePatch(token!, p.landUnitId, p.data);
+            break;
+          case "light":
+            await fieldApi.saveLight(token!, p.data);
+            break;
+          case "breadcrumbs":
+            await fieldApi.postBreadcrumbs(token!, p.walkSessionId, p.points);
+            break;
+        }
+        dequeue(item.id);
+        flushed++;
+      } catch {
+        recordFlushFailure();
+        break;
+      }
+    }
+    const remaining = pendingCount();
+    setQueuedCount(remaining);
+    if (flushed > 0) {
+      resetBackoff();
+      // Clear queued flags on badges — they are now synced
+      setAnchorBadges((prev) => prev.map((b) => b.queued ? { ...b, queued: false } : b));
+      setSubjectBadges((prev) => prev.map((b) => b.queued ? { ...b, queued: false } : b));
+      setAreaBadges((prev) => prev.map((b) => b.queued ? { ...b, queued: false } : b));
+      if (remaining === 0) {
+        flashStrip("synced", 3000);
+      }
+    }
+  }, [isLive, token, flashStrip]);
+
+  // Flush when coming back online
+  useEffect(() => {
+    const handler = () => flushQueue();
+    window.addEventListener("online", handler);
+    return () => window.removeEventListener("online", handler);
+  }, [flushQueue]);
+
+  // Attempt flush on mount and when walk ends (device likely re-entering signal)
+  useEffect(() => {
+    if (isLive && queuedCount > 0) flushQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, walkActive]);
 
   // ── GPS coordinate helper ─────────────────────────────────────────────────
 
@@ -237,7 +368,20 @@ export default function FieldMapperShell({
   }, [isLive, token, landUnitId, startGps, startRecording]);
 
   const handleEndWalk = useCallback(async () => {
+    // Flush any remaining breadcrumbs before ending
     if (isLive && walkSessionId) {
+      const unflushed = trail.slice(flushedCountRef.current);
+      if (unflushed.length > 0) {
+        const points = unflushed.map((p, i) => ({
+          seq: flushedCountRef.current + i,
+          device_lat: p.lat,
+          device_lng: p.lng,
+          heading_degrees: p.heading,
+          accuracy_m: p.accuracy,
+          movement_confidence: 0.5,
+        }));
+        await fieldApi.postBreadcrumbs(token!, walkSessionId, points).catch(() => {});
+      }
       try {
         await fieldApi.endWalk(token!, walkSessionId);
       } catch (e: any) {
@@ -255,15 +399,20 @@ export default function FieldMapperShell({
     const subjectPins: MapPin[] = [];
     const areaPins: MapPin[] = [];
 
-    // We'll fetch fresh data for pins if live
+    // Fetch fresh data for pins, readiness next action, and memory stage
+    let nextAction: { label: string; description: string } | null = null;
+    let memoryStage: string | null = null;
+
     if (isLive) {
       try {
-        const [mem, subs, pats] = await Promise.all([
+        const [mem, subs, pats, readinessNext] = await Promise.all([
           fieldApi.fetchPropertyMemory(token!, landUnitId!),
           fieldApi.fetchSubjects(token!, landUnitId!),
           fieldApi.fetchPatches(token!, landUnitId!),
+          fieldApi.fetchNextObservation(token!, landUnitId!).catch(() => null),
         ]);
         if (mem) {
+          memoryStage = mem.memory_stage;
           mem.anchors.forEach((a) => {
             if (a.device_lat && a.device_lng) {
               anchorPins.push({ lat: a.device_lat, lng: a.device_lng, label: a.label, color: "#f59e0b" });
@@ -280,6 +429,12 @@ export default function FieldMapperShell({
             areaPins.push({ lat: p.device_lat, lng: p.device_lng, label: p.label || p.patch_type, color: "#a3e635" });
           }
         });
+        if (readinessNext) {
+          nextAction = {
+            label: readinessNext.description,
+            description: readinessNext.impact,
+          };
+        }
       } catch { /* non-critical */ }
     }
 
@@ -293,6 +448,9 @@ export default function FieldMapperShell({
       anchorPins,
       subjectPins,
       areaPins,
+      nextAction,
+      memoryStage: memoryStage as MemoryStage | null,
+      queuedCount,
     });
 
     setWalkActive(false);
@@ -304,94 +462,125 @@ export default function FieldMapperShell({
   }, [isLive, token, landUnitId, walkSessionId, walkStartedAt, anchorCount, subjectCount, areaCount, lightSavedThisSession, trail, stopGps, stopRecording]);
 
   const handleSaveAnchor = useCallback(async (type: string, label: string) => {
+    const coords = gpsCoords();
+    const data = {
+      anchor_type: type,
+      label,
+      ...coords,
+      ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
+    };
+    let queued = false;
     if (isLive) {
       try {
-        const coords = gpsCoords();
-        const anchor = await fieldApi.saveAnchor(token!, landUnitId!, {
-          anchor_type: type,
-          label,
-          ...coords,
-          ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
-        });
+        const anchor = await fieldApi.saveAnchor(token!, landUnitId!, data);
         setAnchorBadges((prev) => [...prev, { id: anchor.id, label, type, recent: true }]);
       } catch (e: any) {
-        setError(e.message ?? "Could not save reference point");
-        return;
+        if (isNetworkError(e)) {
+          queueItem("anchor", { landUnitId: landUnitId!, data });
+          setAnchorBadges((prev) => [...prev, { id: `queued-${Date.now()}`, label, type, recent: true, queued: true }]);
+          queued = true;
+        } else {
+          setError(e.message ?? "Could not save reference point");
+          return;
+        }
       }
     } else {
       setAnchorBadges((prev) => [...prev, { id: `local-${Date.now()}`, label, type, recent: true }]);
     }
     setAnchorCount((n) => n + 1);
-    flashStrip("anchor_confirmed");
+    flashStrip(queued ? "queued" : "anchor_confirmed");
     setPanelOpen(false);
-  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip]);
+  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
 
   const handleSaveArea = useCallback(async (type: string, label: string) => {
+    const coords = gpsCoords();
+    const data = {
+      patch_type: type,
+      label: label || null,
+      ...coords,
+      ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
+    };
+    let queued = false;
     if (isLive) {
       try {
-        const coords = gpsCoords();
-        const patch = await fieldApi.savePatch(token!, landUnitId!, {
-          patch_type: type,
-          label: label || null,
-          ...coords,
-          ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
-        });
+        const patch = await fieldApi.savePatch(token!, landUnitId!, data);
         setAreaBadges((prev) => [...prev, { id: patch.id, label: label || type, type, recent: true }]);
       } catch (e: any) {
-        setError(e.message ?? "Could not mark area");
-        return;
+        if (isNetworkError(e)) {
+          queueItem("patch", { landUnitId: landUnitId!, data });
+          setAreaBadges((prev) => [...prev, { id: `queued-${Date.now()}`, label: label || type, type, recent: true, queued: true }]);
+          queued = true;
+        } else {
+          setError(e.message ?? "Could not mark area");
+          return;
+        }
       }
     } else {
       setAreaBadges((prev) => [...prev, { id: `local-${Date.now()}`, label: label || type, type, recent: true }]);
     }
     setAreaCount((n) => n + 1);
-    flashStrip("area_marked");
+    flashStrip(queued ? "queued" : "area_marked");
     setPanelOpen(false);
-  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip]);
+  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
 
   const handleTagSubject = useCallback(async (type: string, label: string) => {
+    const coords = gpsCoords();
+    const data = {
+      subject_type: type,
+      label: label || null,
+      ...coords,
+      ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
+    };
+    let queued = false;
     if (isLive) {
       try {
-        const coords = gpsCoords();
-        const subject = await fieldApi.saveSubject(token!, landUnitId!, {
-          subject_type: type,
-          label: label || null,
-          ...coords,
-          ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
-        });
+        const subject = await fieldApi.saveSubject(token!, landUnitId!, data);
         setSubjectBadges((prev) => [...prev, { id: subject.id, label: label || type, type, recent: true }]);
       } catch (e: any) {
-        setError(e.message ?? "Could not note plant");
-        return;
+        if (isNetworkError(e)) {
+          queueItem("subject", { landUnitId: landUnitId!, data });
+          setSubjectBadges((prev) => [...prev, { id: `queued-${Date.now()}`, label: label || type, type, recent: true, queued: true }]);
+          queued = true;
+        } else {
+          setError(e.message ?? "Could not note plant");
+          return;
+        }
       }
     } else {
       setSubjectBadges((prev) => [...prev, { id: `local-${Date.now()}`, label: label || type, type, recent: true }]);
     }
     setSubjectCount((n) => n + 1);
-    flashStrip("subject_tagged");
+    flashStrip(queued ? "queued" : "subject_tagged");
     setPanelOpen(false);
-  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip]);
+  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
 
   const handleSaveLight = useCallback(async (direction: string, condition: string) => {
+    const loc = locationRef.current;
+    const data = {
+      land_unit_id: landUnitId!,
+      direction,
+      condition,
+      lat: loc?.lat ?? null,
+      lng: loc?.lng ?? null,
+    };
+    let queued = false;
     if (isLive) {
       try {
-        const loc = locationRef.current;
-        await fieldApi.saveLight(token!, {
-          land_unit_id: landUnitId!,
-          direction,
-          condition,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
-        });
+        await fieldApi.saveLight(token!, data);
       } catch (e: any) {
-        setError(e.message ?? "Could not record light");
-        return;
+        if (isNetworkError(e)) {
+          queueItem("light", { data });
+          queued = true;
+        } else {
+          setError(e.message ?? "Could not record light");
+          return;
+        }
       }
     }
     setLightSavedThisSession(true);
-    flashStrip("walk_active");
+    flashStrip(queued ? "queued" : "walk_active");
     setPanelOpen(false);
-  }, [isLive, token, landUnitId, locationRef, flashStrip]);
+  }, [isLive, token, landUnitId, locationRef, flashStrip, queueItem]);
 
   const handleDismissReview = useCallback(() => {
     setReviewData(null);
@@ -437,6 +626,7 @@ export default function FieldMapperShell({
           areas={areaBadges}
           lightRecorded={lightSavedThisSession}
           walkActive={walkActive}
+          queuedCount={queuedCount}
         />
       </CameraFeed>
 
@@ -446,9 +636,11 @@ export default function FieldMapperShell({
           state={stripState}
           propertyLabel={propertyLabel}
           detail={
-            nextObs && walkActive && stripState === "walk_active"
-              ? nextObs.description
-              : undefined
+            queuedCount > 0 && walkActive
+              ? `${queuedCount} saved offline — will sync when connected`
+              : nextObs && walkActive && stripState === "walk_active"
+                ? nextObs.description
+                : undefined
           }
         />
         {walkActive && gpsError && (

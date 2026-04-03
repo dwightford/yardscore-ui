@@ -21,7 +21,9 @@ export type StripState =
   | "area_marked"        // just marked an area
   | "subject_tagged"     // just tagged a plant/tree
   | "walk_done"          // walk completed
-  | "memory_forming";    // 1-2 walks done, building up
+  | "memory_forming"     // 1-2 walks done, building up
+  | "queued"             // items saved offline, waiting to sync
+  | "synced";            // offline items just synced successfully
 
 interface SessionStatusStripProps {
   state: StripState;
@@ -76,6 +78,16 @@ const MESSAGES: Record<StripState, { icon: string; text: string; accent: string 
     icon: "🗺",
     text: "Property memory is forming. A few more walks will fill it in.",
     accent: "text-blue-400",
+  },
+  queued: {
+    icon: "📶",
+    text: "Some observations are saved locally. They'll sync when you're back online.",
+    accent: "text-orange-400",
+  },
+  synced: {
+    icon: "✓",
+    text: "All offline observations have been synced.",
+    accent: "text-green-400",
   },
 };
 

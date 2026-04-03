@@ -28,7 +28,8 @@ export interface AnchorBadge {
   id: string;
   label: string;
   type: string;
-  recent?: boolean; // highlight if just placed
+  recent?: boolean;
+  queued?: boolean; // saved offline, not yet synced
 }
 
 export interface SubjectBadge {
@@ -37,6 +38,7 @@ export interface SubjectBadge {
   type: string;
   species?: string | null;
   recent?: boolean;
+  queued?: boolean;
 }
 
 export interface AreaBadge {
@@ -44,6 +46,7 @@ export interface AreaBadge {
   label: string;
   type: string;
   recent?: boolean;
+  queued?: boolean;
 }
 
 interface CameraOverlayProps {
@@ -53,6 +56,8 @@ interface CameraOverlayProps {
   areas: AreaBadge[];
   lightRecorded: boolean;
   walkActive: boolean;
+  /** Number of observations queued offline, waiting to sync */
+  queuedCount?: number;
 }
 
 export default function CameraOverlay({
@@ -62,6 +67,7 @@ export default function CameraOverlay({
   areas,
   lightRecorded,
   walkActive,
+  queuedCount = 0,
 }: CameraOverlayProps) {
   if (!walkActive) return null;
 
@@ -101,6 +107,7 @@ export default function CameraOverlay({
               label={a.label}
               color="amber"
               recent={a.recent}
+              queued={a.queued}
             />
           ))}
           {/* Subjects */}
@@ -111,6 +118,7 @@ export default function CameraOverlay({
               label={s.species || s.label}
               color="green"
               recent={s.recent}
+              queued={s.queued}
             />
           ))}
           {/* Areas */}
@@ -121,6 +129,7 @@ export default function CameraOverlay({
               label={a.label}
               color="lime"
               recent={a.recent}
+              queued={a.queued}
             />
           ))}
           {/* Light */}
@@ -134,6 +143,11 @@ export default function CameraOverlay({
       <div className="absolute top-14 left-3 flex items-center gap-1.5 pointer-events-none">
         <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
         <span className="text-green-400/70 text-[10px] font-medium">Recording</span>
+        {queuedCount > 0 && (
+          <span className="ml-2 flex items-center gap-1 bg-orange-900/60 border border-orange-600/40 rounded-full px-1.5 py-0.5">
+            <span className="text-orange-400 text-[9px] font-medium">{queuedCount} queued</span>
+          </span>
+        )}
       </div>
     </>
   );
@@ -153,19 +167,25 @@ function Badge({
   label,
   color,
   recent,
+  queued,
 }: {
   icon: string;
   label: string;
   color: string;
   recent?: boolean;
+  queued?: boolean;
 }) {
   const c = COLOR_MAP[color] ?? COLOR_MAP.green;
   return (
     <div
       className={[
-        "flex items-center gap-1 px-2 py-1 rounded-full border backdrop-blur-sm text-[10px] font-medium truncate max-w-full",
-        c.bg, c.border, c.text,
-        recent ? "opacity-100 ring-1 ring-white/20" : "opacity-70",
+        "flex items-center gap-1 px-2 py-1 rounded-full backdrop-blur-sm text-[10px] font-medium truncate max-w-full",
+        c.bg, c.text,
+        queued
+          ? "border border-dashed border-orange-500/50 opacity-50"
+          : `border ${c.border}`,
+        recent && !queued ? "opacity-100 ring-1 ring-white/20" : "",
+        !recent && !queued ? "opacity-70" : "",
       ].join(" ")}
     >
       <span className="text-xs leading-none flex-none">{icon}</span>

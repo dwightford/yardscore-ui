@@ -43,6 +43,13 @@ export interface MapPin {
   color: string;
 }
 
+export interface NextAction {
+  label: string;
+  description: string;
+}
+
+export type MemoryStage = "unstarted" | "walked_no_origin" | "origin_only" | "forming" | "established";
+
 export interface WalkReviewData {
   duration: number; // seconds
   anchorCount: number;
@@ -54,6 +61,12 @@ export interface WalkReviewData {
   anchorPins?: MapPin[];
   subjectPins?: MapPin[];
   areaPins?: MapPin[];
+  /** Readiness-driven next action suggestion */
+  nextAction?: NextAction | null;
+  /** Property memory maturity after this walk */
+  memoryStage?: MemoryStage | null;
+  /** Number of observations still queued offline */
+  queuedCount?: number;
 }
 
 interface WalkReviewProps {
@@ -241,18 +254,36 @@ export default function WalkReview({
         {/* Narrative */}
         <div className="bg-white/5 rounded-xl px-4 py-3 mb-4">
           <p className="text-stone-300 text-sm leading-relaxed">
-            {totalItems === 0
-              ? "You completed a walk. Next time, try marking some plants and areas as you go — even rough notes help build your property memory."
-              : totalItems <= 3
-                ? "Good start. Each walk adds to your property memory. The more you note, the better your recommendations will be."
-                : "Great walk. Your property memory is getting stronger. Repeated visits across seasons will fill in the picture."}
+            {reviewNarrative(totalItems, data.memoryStage ?? null)}
           </p>
-          {!data.lightRecorded && (
+          {data.nextAction && (
+            <div className="mt-2 pt-2 border-t border-white/5">
+              <p className="text-stone-200 text-xs font-medium">{data.nextAction.label}</p>
+              <p className="text-stone-500 text-xs mt-0.5">{data.nextAction.description}</p>
+            </div>
+          )}
+          {!data.nextAction && !data.lightRecorded && (
             <p className="text-stone-500 text-xs mt-2">
               Recording light conditions on your next walk will help with planting recommendations.
             </p>
           )}
         </div>
+
+        {/* Memory maturity */}
+        {data.memoryStage && (
+          <MemoryStageIndicator stage={data.memoryStage} />
+        )}
+
+        {/* Queued items notice */}
+        {data.queuedCount != null && data.queuedCount > 0 && (
+          <div className="bg-orange-900/30 border border-orange-700/30 rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
+            <span className="text-base">📶</span>
+            <p className="text-orange-300 text-xs">
+              {data.queuedCount} {data.queuedCount === 1 ? "observation" : "observations"} saved
+              offline — will sync when you&apos;re back online.
+            </p>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
@@ -276,11 +307,58 @@ export default function WalkReview({
   );
 }
 
+function reviewNarrative(totalItems: number, stage: MemoryStage | null): string {
+  if (stage === "established") {
+    return totalItems > 0
+      ? "Great walk. Your property memory is well established. Seasonal revisits keep it fresh."
+      : "Walk complete. Your memory is strong — revisiting across seasons adds the most value now.";
+  }
+  if (stage === "forming") {
+    return totalItems > 3
+      ? "Great walk. Your property memory is forming nicely. A couple more walks will fill in the picture."
+      : "Good progress. Each walk strengthens your property memory. Try noting a few more things next time.";
+  }
+  // Early stages or unknown
+  if (totalItems === 0) {
+    return "You completed a walk. Next time, try marking some plants and areas as you go — even rough notes help build your property memory.";
+  }
+  if (totalItems <= 3) {
+    return "Good start. Each walk adds to your property memory. The more you note, the better your recommendations will be.";
+  }
+  return "Great walk. Your property memory is getting stronger. Repeated visits across seasons will fill in the picture.";
+}
+
 function StatCard({ value, label, accent }: { value: string; label: string; accent: string }) {
   return (
     <div className="bg-white/5 rounded-xl py-2.5 px-3">
       <p className={`text-lg font-bold ${accent}`}>{value}</p>
       <p className="text-stone-500 text-[10px] mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+const STAGE_CONFIG: Record<MemoryStage, { label: string; fill: number; accent: string }> = {
+  unstarted:        { label: "Not started",     fill: 0,   accent: "bg-stone-600" },
+  walked_no_origin: { label: "Needs origin",    fill: 15,  accent: "bg-amber-600" },
+  origin_only:      { label: "Origin set",      fill: 25,  accent: "bg-amber-500" },
+  forming:          { label: "Forming",         fill: 55,  accent: "bg-blue-500" },
+  established:      { label: "Established",     fill: 90,  accent: "bg-green-500" },
+};
+
+function MemoryStageIndicator({ stage }: { stage: MemoryStage }) {
+  const cfg = STAGE_CONFIG[stage];
+  return (
+    <div className="bg-white/5 rounded-xl px-4 py-3 mb-4">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-stone-400 text-[10px] uppercase tracking-wide">Property memory</p>
+        <p className="text-stone-300 text-xs font-medium">{cfg.label}</p>
+      </div>
+      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${cfg.accent}`}
+          style={{ width: `${cfg.fill}%` }}
+        />
+      </div>
     </div>
   );
 }

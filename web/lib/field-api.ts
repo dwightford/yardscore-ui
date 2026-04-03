@@ -83,7 +83,11 @@ export async function fetchActiveWalk(
 
 // ── Property memory (for hydrating counts + badge data) ─────────────────────
 
+export type MemoryStage = "unstarted" | "walked_no_origin" | "origin_only" | "forming" | "established";
+
 export interface PropertyMemorySummary {
+  memory_stage: MemoryStage;
+  prompt: string;
   anchor_count: number;
   anchors: Array<{
     id: string;
@@ -92,6 +96,7 @@ export interface PropertyMemorySummary {
     device_lat?: number | null;
     device_lng?: number | null;
   }>;
+  walk_sessions_completed: number;
   subjects: { total: number; trees: number; shrubs: number };
   patches: { total: number };
 }
@@ -306,6 +311,66 @@ export async function fetchNextObservation(
   );
   if (!res.ok) return null;
   return res.json();
+}
+
+// ── Breadcrumbs ─────────────────────────────────────────────────────────────
+
+export interface BreadcrumbPoint {
+  seq: number;
+  device_lat: number | null;
+  device_lng: number | null;
+  heading_degrees: number | null;
+  accuracy_m: number | null;
+  movement_confidence: number;
+}
+
+export async function postBreadcrumbs(
+  token: string,
+  walkSessionId: string,
+  points: BreadcrumbPoint[],
+): Promise<{ appended: number }> {
+  if (points.length === 0) return { appended: 0 };
+  const res = await apiFetch(
+    token,
+    `${API}/field/walk-sessions/${walkSessionId}/breadcrumbs`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ points }),
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Weather ─────────────────────────────────────────────────────────────────
+
+export interface WeatherConditions {
+  station_id: string;
+  description: string;
+  temperature_c: number | null;
+  wind_speed_kmh: number | null;
+  humidity_pct: number | null;
+  cloud_cover: "clear" | "partly_cloudy" | "overcast" | "precipitation" | "unknown";
+  observed_at: string | null;
+}
+
+export async function fetchWeather(
+  token: string,
+  landUnitId: string,
+): Promise<WeatherConditions | null> {
+  const res = await apiFetch(
+    token,
+    `${API}/land_units/${landUnitId}/weather`,
+  );
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Returns true if conditions are suitable for a light observation. */
+export function isGoodLightConditions(weather: WeatherConditions | null): boolean {
+  if (!weather) return true; // no data = don't suppress
+  return weather.cloud_cover === "clear" || weather.cloud_cover === "partly_cloudy";
 }
 
 // ── Plant identification (PlantNet proxy) ────────────────────────────────────

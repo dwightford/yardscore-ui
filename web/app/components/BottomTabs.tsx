@@ -43,7 +43,7 @@ const TABS = [
 ];
 
 /** Pages where the tab bar should NOT appear */
-const HIDDEN_ON = ["/login", "/spike", "/share", "/scan"];
+const HIDDEN_ON = ["/login", "/spike", "/share", "/scan", "/walk"];
 
 export default function BottomTabs() {
   const pathname = usePathname();
