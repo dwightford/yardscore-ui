@@ -306,13 +306,19 @@ export default function GuidedWalkFlow({
     }, 90_000);
   }, [isLive, token, landUnitId, hasAnchorSuggestions, scheduleNonAnchorPrompt]);
 
-  // ── Screen 1 handlers ──────────────────────────────────────────────────
+  // ── Screen 1 handler: set front door + start walk in one action ─────────
+  // The walk starts first so the anchor gets linked to the walk session.
+  // This is the primary entry point — one big button, one action.
 
-  const handleSetFrontDoor = useCallback(async () => {
+  const handleSetFrontDoorAndStart = useCallback(async () => {
     if (isLive) {
       setOriginSaving(true);
       setError(null);
       try {
+        // 1. Start walk first so we have a session ID
+        const walk = await fieldApi.startWalk(token!, landUnitId!);
+
+        // 2. Save front door anchor linked to this walk
         const loc = locationRef.current;
         await fieldApi.saveAnchor(token!, landUnitId!, {
           anchor_type: "front_door",
@@ -320,6 +326,7 @@ export default function GuidedWalkFlow({
           device_lat: loc?.lat ?? null,
           device_lng: loc?.lng ?? null,
           accuracy_m: loc?.accuracy ?? null,
+          walk_session_id: walk.id,
         });
         setMemCtx((prev) =>
           prev
@@ -327,18 +334,36 @@ export default function GuidedWalkFlow({
             : prev,
         );
       } catch (e: any) {
-        setError(e.message ?? "Could not save front door — you can set it later.");
+        setError(e.message ?? "Could not start — check your connection and try again.");
+        setOriginSaving(false);
+        return;
       }
       setOriginSaving(false);
     }
-    setStep("begin");
-  }, [isLive, token, landUnitId, locationRef]);
+    hasScheduledRef.current = true;
+    setStep("walking");
+    schedulePrompts();
+  }, [isLive, token, landUnitId, locationRef, schedulePrompts]);
 
-  const handleSkipOrigin = useCallback(() => {
-    setStep("begin");
-  }, []);
+  const handleSkipOriginAndStart = useCallback(async () => {
+    if (isLive) {
+      setWalkStarting(true);
+      setError(null);
+      try {
+        await fieldApi.startWalk(token!, landUnitId!);
+      } catch (e: any) {
+        setError(e.message ?? "Could not start walk. Check your connection and try again.");
+        setWalkStarting(false);
+        return;
+      }
+      setWalkStarting(false);
+    }
+    hasScheduledRef.current = true;
+    setStep("walking");
+    schedulePrompts();
+  }, [isLive, token, landUnitId, schedulePrompts]);
 
-  // ── Screen 2 handlers ──────────────────────────────────────────────────
+  // ── Screen 2 handler (returning user — already has origin) ─────────────
 
   const handleBeginWalk = useCallback(async () => {
     if (isLive) {
@@ -349,7 +374,7 @@ export default function GuidedWalkFlow({
       } catch (e: any) {
         setError(e.message ?? "Could not start walk. Check your connection and try again.");
         setWalkStarting(false);
-        return; // Stay on Begin Walk screen — don't proceed to broken shell
+        return;
       }
       setWalkStarting(false);
     }
@@ -472,18 +497,19 @@ export default function GuidedWalkFlow({
                 {error && <InlineError message={error} />}
 
                 <button
-                  onClick={handleSetFrontDoor}
+                  onClick={handleSetFrontDoorAndStart}
                   disabled={originSaving}
-                  className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
+                  className="w-full bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
                 >
-                  {originSaving ? "Setting..." : "Set Front Door"}
+                  {originSaving ? "Starting..." : "Set Front Door & Start Walk"}
                 </button>
 
                 <button
-                  onClick={handleSkipOrigin}
+                  onClick={handleSkipOriginAndStart}
+                  disabled={walkStarting}
                   className="text-stone-500 hover:text-stone-300 text-sm transition"
                 >
-                  Not at front door
+                  {walkStarting ? "Starting..." : "Skip — start walking"}
                 </button>
               </div>
             ) : (

@@ -31,11 +31,11 @@ interface Action {
 const PRIMARY_ACTIONS: Action[] = [
   { mode: "walk",     icon: "👣", label: "Walk",     primary: true },
   { mode: "identify", icon: "🔍", label: "Identify", primary: true },
+  { mode: "anchor",   icon: "📍", label: "Anchor",   primary: true },
   { mode: "light",    icon: "☀️", label: "Light",    primary: true },
 ];
 
 const SECONDARY_ACTIONS: Action[] = [
-  { mode: "anchor",   icon: "📍", label: "Anchor"    },
   { mode: "area",     icon: "🌿", label: "Mark Area" },
 ];
 
