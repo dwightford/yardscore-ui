@@ -56,7 +56,10 @@ export default function BottomTabs() {
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-white/[0.06] bg-[#07110c]/95 backdrop-blur-lg" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {TABS.map((tab) => {
-          const active = pathname === tab.href || (tab.href !== "/" && pathname.startsWith(tab.href));
+          // Property pages count as "Home" since dashboard auto-redirects there
+          const active = tab.href === "/dashboard"
+            ? pathname === "/dashboard" || pathname.startsWith("/property")
+            : pathname === tab.href || (tab.href !== "/" && pathname.startsWith(tab.href));
           return (
             <a
               key={tab.href}
