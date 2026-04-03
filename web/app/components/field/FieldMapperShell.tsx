@@ -243,6 +243,41 @@ export default function FieldMapperShell({
     if (!walkActive) flushedCountRef.current = 0;
   }, [walkActive]);
 
+  // ── Walk inactivity auto-close ────────────────────────────────────────────
+
+  const [showInactivePrompt, setShowInactivePrompt] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const INACTIVE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Reset activity timestamp on any trail growth or user action
+  useEffect(() => {
+    if (trail.length > 0) lastActivityRef.current = Date.now();
+  }, [trail.length]);
+
+  // Check for inactivity every 30s during a walk
+  useEffect(() => {
+    if (!walkActive) {
+      setShowInactivePrompt(false);
+      return;
+    }
+    const check = setInterval(() => {
+      if (Date.now() - lastActivityRef.current > INACTIVE_TIMEOUT_MS) {
+        setShowInactivePrompt(true);
+      }
+    }, 30_000);
+    return () => clearInterval(check);
+  }, [walkActive]);
+
+  const handleKeepWalking = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setShowInactivePrompt(false);
+  }, []);
+
+  const handleInactiveEnd = useCallback(() => {
+    setShowInactivePrompt(false);
+    handleEndWalk();
+  }, [handleEndWalk]);
+
   // ── Mid-walk readiness re-poll (live mode) ───────────────────────────────
 
   useEffect(() => {
@@ -745,6 +780,33 @@ export default function FieldMapperShell({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Layer 3c: Inactivity prompt ─────────────────────────────────── */}
+      {showInactivePrompt && (
+        <div className="absolute inset-0 z-25 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="relative z-10 bg-stone-950/95 border border-white/10 rounded-2xl px-6 py-6 mx-6 max-w-sm text-center">
+            <p className="text-white text-base font-semibold mb-2">Still walking?</p>
+            <p className="text-stone-400 text-sm mb-5">
+              No movement detected for a few minutes. Want to finish this walk?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleKeepWalking}
+                className="flex-1 bg-green-600 hover:bg-green-500 active:scale-95 text-white font-semibold rounded-xl py-3 text-sm transition"
+              >
+                Keep Walking
+              </button>
+              <button
+                onClick={handleInactiveEnd}
+                className="flex-1 bg-stone-700 hover:bg-stone-600 active:scale-95 text-stone-200 font-semibold rounded-xl py-3 text-sm transition"
+              >
+                Finish Walk
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Layer 4: Bottom action rail ────────────────────────────────── */}
       <div className="absolute bottom-0 left-0 right-0 z-10">
