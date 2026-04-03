@@ -106,6 +106,10 @@ export default function FieldMapperShell({
   const [reviewData, setReviewData] = useState<WalkReviewData | null>(null);
   const [nextObs, setNextObs] = useState<fieldApi.NextObservation | null>(null);
   const [memStage, setMemStage] = useState<fieldApi.MemoryStage | null>(null);
+  const [queuedCount, setQueuedCount] = useState(() => {
+    expireStale();
+    return pendingCount();
+  });
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Readiness-driven strip state ──────────────────────────────────────────
@@ -243,12 +247,7 @@ export default function FieldMapperShell({
     return () => clearInterval(interval);
   }, [isLive, token, landUnitId, walkActive]);
 
-  // ── Offline queue state + flush ────────────────────────────────────────────
-
-  const [queuedCount, setQueuedCount] = useState(() => {
-    expireStale(); // drop items older than 24h on mount
-    return pendingCount();
-  });
+  // ── Offline queue flush ────────────────────────────────────────────────────
 
   const queueItem = useCallback((type: QueuedItemType, payload: any) => {
     enqueue(type, payload);
