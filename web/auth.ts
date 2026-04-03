@@ -15,8 +15,19 @@ async function createApiToken(userId: string, email: string): Promise<string> {
     .sign(secret);
 }
 
-/** Ensure the user exists in the API backend (auto-creates if needed). */
+/** Check allowlist before creating a user. Rejects emails not on the list. */
 async function ensureApiUser(email: string, name?: string | null): Promise<{ id: string; email: string; display_name: string }> {
+  // Gate: check allowlist first (same check the magic-link flow uses)
+  const check = await fetch(`${API_INTERNAL}/auth/check-allowlist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!check.ok) throw new Error("Not on the early access list");
+  const checkData = await check.json();
+  if (!checkData.allowed) throw new Error("Not on the early access list");
+
+  // Allowed — resolve or auto-create user
   const r = await fetch(`${API_INTERNAL}/auth/profile?email=${encodeURIComponent(email)}`);
   if (r.ok) return r.json();
   throw new Error("Could not resolve API user");
