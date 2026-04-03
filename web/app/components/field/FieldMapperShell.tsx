@@ -110,6 +110,12 @@ export default function FieldMapperShell({
     expireStale();
     return pendingCount();
   });
+
+  const queueItem = useCallback((type: QueuedItemType, payload: any) => {
+    enqueue(type, payload);
+    setQueuedCount(pendingCount());
+  }, []);
+
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Readiness-driven strip state ──────────────────────────────────────────
@@ -248,11 +254,6 @@ export default function FieldMapperShell({
   }, [isLive, token, landUnitId, walkActive]);
 
   // ── Offline queue flush ────────────────────────────────────────────────────
-
-  const queueItem = useCallback((type: QueuedItemType, payload: any) => {
-    enqueue(type, payload);
-    setQueuedCount(pendingCount());
-  }, []);
 
   const flushQueue = useCallback(async () => {
     if (!isLive) return;
