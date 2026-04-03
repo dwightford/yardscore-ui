@@ -3,12 +3,13 @@
 /**
  * WalkReview
  *
- * Shown after a walk ends. Summarizes what was captured during the
- * session: anchors, plants, areas, trail length, duration.
- * Includes a mini-map showing the walk trail and tagged items.
- * Plain homeowner language — no internal jargon.
+ * Shown after observation ends. This is the handoff surface —
+ * not the full browser. It should feel like a gentle summary
+ * of what the walk added to property memory.
  *
- * Actions: view property details, start another walk, or dismiss.
+ * Canon: anchors confirmed, known plants updated, new candidates,
+ * areas marked, light confidence improved, sensory notes added,
+ * one next best action.
  */
 
 import React from "react";
@@ -16,23 +17,10 @@ import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 import type { TrailPoint } from "@/hooks/useWalkTrail";
 
-// Dynamic Leaflet imports (no SSR)
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((m) => m.MapContainer),
-  { ssr: false },
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((m) => m.TileLayer),
-  { ssr: false },
-);
-const Polyline = dynamic(
-  () => import("react-leaflet").then((m) => m.Polyline),
-  { ssr: false },
-);
-const CircleMarker = dynamic(
-  () => import("react-leaflet").then((m) => m.CircleMarker),
-  { ssr: false },
-);
+const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
+const Polyline = dynamic(() => import("react-leaflet").then((m) => m.Polyline), { ssr: false });
+const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,21 +39,18 @@ export interface NextAction {
 export type MemoryStage = "unstarted" | "walked_no_origin" | "origin_only" | "forming" | "established";
 
 export interface WalkReviewData {
-  duration: number; // seconds
+  duration: number;
   anchorCount: number;
   subjectCount: number;
   areaCount: number;
   lightRecorded: boolean;
+  noteCount?: number;
   trail: TrailPoint[];
-  /** Optional pins for map display */
   anchorPins?: MapPin[];
   subjectPins?: MapPin[];
   areaPins?: MapPin[];
-  /** Readiness-driven next action suggestion */
   nextAction?: NextAction | null;
-  /** Property memory maturity after this walk */
   memoryStage?: MemoryStage | null;
-  /** Number of observations still queued offline */
   queuedCount?: number;
 }
 
@@ -80,47 +65,15 @@ interface WalkReviewProps {
 function formatDuration(s: number): string {
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
-}
-
-function trailDistanceM(trail: TrailPoint[]): number {
-  let total = 0;
-  for (let i = 1; i < trail.length; i++) {
-    const a = trail[i - 1];
-    const b = trail[i];
-    const R = 6371000;
-    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-    const sinLat = Math.sin(dLat / 2);
-    const sinLng = Math.sin(dLng / 2);
-    const h =
-      sinLat * sinLat +
-      Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
-    total += R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-  }
-  return total;
-}
-
-function formatDistance(m: number): string {
-  if (m < 30) return `${Math.round(m)} m`;
-  const ft = Math.round(m * 3.281);
-  return ft > 5000 ? `${(ft / 5280).toFixed(1)} mi` : `${ft} ft`;
+  return `${m} min`;
 }
 
 // ── Trail map ────────────────────────────────────────────────────────────────
 
-function TrailMap({ trail, anchorPins, subjectPins, areaPins }: {
-  trail: TrailPoint[];
-  anchorPins?: MapPin[];
-  subjectPins?: MapPin[];
-  areaPins?: MapPin[];
-}) {
+function TrailMap({ trail, pins }: { trail: TrailPoint[]; pins: MapPin[] }) {
   if (trail.length < 2) return null;
 
   const positions: [number, number][] = trail.map((p) => [p.lat, p.lng]);
-
-  // Compute bounds center
   const lats = trail.map((p) => p.lat);
   const lngs = trail.map((p) => p.lng);
   const center: [number, number] = [
@@ -128,14 +81,8 @@ function TrailMap({ trail, anchorPins, subjectPins, areaPins }: {
     (Math.min(...lngs) + Math.max(...lngs)) / 2,
   ];
 
-  const allPins = [
-    ...(anchorPins ?? []),
-    ...(subjectPins ?? []),
-    ...(areaPins ?? []),
-  ];
-
   return (
-    <div className="rounded-xl overflow-hidden border border-white/10" style={{ height: 180 }}>
+    <div className="rounded-xl overflow-hidden border border-white/[0.06]" style={{ height: 160 }}>
       <MapContainer
         center={center}
         zoom={19}
@@ -145,34 +92,12 @@ function TrailMap({ trail, anchorPins, subjectPins, areaPins }: {
         zoomControl={false}
         attributionControl={false}
       >
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        />
-        {/* Walk trail polyline */}
-        <Polyline
-          positions={positions}
-          pathOptions={{ color: "#4ade80", weight: 3, opacity: 0.8 }}
-        />
-        {/* Start point */}
-        <CircleMarker
-          center={positions[0]}
-          radius={6}
-          pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 1 }}
-        />
-        {/* End point */}
-        <CircleMarker
-          center={positions[positions.length - 1]}
-          radius={6}
-          pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 1 }}
-        />
-        {/* Pins */}
-        {allPins.map((pin, i) => (
-          <CircleMarker
-            key={i}
-            center={[pin.lat, pin.lng]}
-            radius={5}
-            pathOptions={{ color: pin.color, fillColor: pin.color, fillOpacity: 0.9 }}
-          />
+        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+        <Polyline positions={positions} pathOptions={{ color: "#4ade80", weight: 2, opacity: 0.6 }} />
+        <CircleMarker center={positions[0]} radius={4} pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 1 }} />
+        <CircleMarker center={positions[positions.length - 1]} radius={4} pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 1 }} />
+        {pins.map((pin, i) => (
+          <CircleMarker key={i} center={[pin.lat, pin.lng]} radius={3} pathOptions={{ color: pin.color, fillColor: pin.color, fillOpacity: 0.8 }} />
         ))}
       </MapContainer>
     </div>
@@ -188,101 +113,96 @@ export default function WalkReview({
   onViewProperty,
   onDismiss,
 }: WalkReviewProps) {
-  const totalItems = data.anchorCount + data.subjectCount + data.areaCount;
-  const distance = trailDistanceM(data.trail);
+  const allPins = [
+    ...(data.anchorPins ?? []),
+    ...(data.subjectPins ?? []),
+    ...(data.areaPins ?? []),
+  ];
+
+  // Build summary items — only show what actually happened
+  const items: Array<{ label: string; accent: string }> = [];
+  if (data.anchorCount > 0) {
+    items.push({ label: `${data.anchorCount} reference ${data.anchorCount === 1 ? "point" : "points"} confirmed`, accent: "text-amber-400/80" });
+  }
+  if (data.subjectCount > 0) {
+    items.push({ label: `${data.subjectCount} ${data.subjectCount === 1 ? "plant" : "plants"} noted`, accent: "text-green-400/80" });
+  }
+  if (data.areaCount > 0) {
+    items.push({ label: `${data.areaCount} ${data.areaCount === 1 ? "area" : "areas"} marked`, accent: "text-lime-400/80" });
+  }
+  if (data.lightRecorded) {
+    items.push({ label: "Light conditions recorded", accent: "text-yellow-400/80" });
+  }
+  if ((data.noteCount ?? 0) > 0) {
+    items.push({ label: `${data.noteCount} ${data.noteCount === 1 ? "note" : "notes"} added`, accent: "text-sky-400/80" });
+  }
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col justify-end">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onDismiss} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onDismiss} />
 
-      {/* Review sheet */}
-      <div className="relative z-10 bg-stone-950/95 rounded-t-2xl border-t border-white/10 px-5 pt-4 pb-6 max-h-[85vh] overflow-y-auto">
-        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+      <div
+        className="relative z-10 bg-stone-950/95 rounded-t-2xl border-t border-white/[0.08] px-5 pt-5 max-h-[85vh] overflow-y-auto"
+        style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="w-8 h-0.5 bg-white/15 rounded-full mx-auto mb-5" />
 
+        {/* Header */}
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-white font-semibold text-base">Walk Complete</h2>
-          <button
-            onClick={onDismiss}
-            className="text-stone-500 hover:text-white text-lg leading-none px-1"
-          >
+          <h2 className="text-white text-base font-semibold">Observation complete</h2>
+          <button onClick={onDismiss} className="text-stone-600 hover:text-stone-400 text-sm px-1">
             ✕
           </button>
         </div>
-        {propertyLabel && (
-          <p className="text-stone-500 text-xs mb-4">{propertyLabel}</p>
-        )}
+        <p className="text-stone-600 text-xs mb-4">
+          {propertyLabel && <span>{propertyLabel} · </span>}
+          {formatDuration(data.duration)}
+        </p>
 
         {/* Trail map */}
         {data.trail.length >= 2 && (
           <div className="mb-4">
-            <TrailMap
-              trail={data.trail}
-              anchorPins={data.anchorPins}
-              subjectPins={data.subjectPins}
-              areaPins={data.areaPins}
-            />
-            <div className="flex items-center justify-between mt-1.5 px-1">
-              <span className="flex items-center gap-1 text-[10px] text-stone-500">
-                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Start
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-stone-500">
-                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> End
-              </span>
-            </div>
+            <TrailMap trail={data.trail} pins={allPins} />
           </div>
         )}
 
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <StatCard value={formatDuration(data.duration)} label="Duration" accent="text-sky-400" />
-          <StatCard
-            value={distance > 0 ? formatDistance(distance) : "--"}
-            label="Distance walked"
-            accent="text-sky-400"
-          />
-          <StatCard value={String(data.anchorCount)} label="Reference points" accent="text-amber-400" />
-          <StatCard value={String(data.subjectCount)} label="Plants noted" accent="text-green-400" />
-          <StatCard value={String(data.areaCount)} label="Areas marked" accent="text-lime-400" />
-          <StatCard
-            value={data.lightRecorded ? "Yes" : "No"}
-            label="Light recorded"
-            accent={data.lightRecorded ? "text-yellow-400" : "text-stone-500"}
-          />
-        </div>
-
-        {/* Narrative */}
-        <div className="bg-white/5 rounded-xl px-4 py-3 mb-4">
-          <p className="text-stone-300 text-sm leading-relaxed">
-            {reviewNarrative(totalItems, data.memoryStage ?? null)}
+        {/* What happened — simple list */}
+        {items.length > 0 ? (
+          <div className="space-y-2 mb-4">
+            {items.map((item, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-white/20 flex-none" />
+                <span className={`text-xs ${item.accent}`}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-stone-500 text-xs mb-4">
+            You walked the yard. Next time, try marking things that catch your eye — even rough notes help.
           </p>
-          {data.nextAction && (
-            <div className="mt-2 pt-2 border-t border-white/5">
-              <p className="text-stone-200 text-xs font-medium">{data.nextAction.label}</p>
-              <p className="text-stone-500 text-xs mt-0.5">{data.nextAction.description}</p>
-            </div>
-          )}
-          {!data.nextAction && !data.lightRecorded && (
-            <p className="text-stone-500 text-xs mt-2">
-              Recording light conditions on your next walk will help with planting recommendations.
-            </p>
-          )}
-        </div>
-
-        {/* Memory maturity */}
-        {data.memoryStage && (
-          <MemoryStageIndicator stage={data.memoryStage} />
         )}
 
-        {/* Queued items notice */}
-        {data.queuedCount != null && data.queuedCount > 0 && (
-          <div className="bg-orange-900/30 border border-orange-700/30 rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
-            <span className="text-base">📶</span>
-            <p className="text-orange-300 text-xs">
-              {data.queuedCount} {data.queuedCount === 1 ? "observation" : "observations"} saved
-              offline — will sync when you&apos;re back online.
-            </p>
+        {/* Memory stage */}
+        {data.memoryStage && (
+          <div className="flex items-center justify-between bg-white/[0.03] rounded-xl px-3 py-2.5 mb-4">
+            <span className="text-stone-500 text-[10px] uppercase tracking-wide">Property memory</span>
+            <span className="text-stone-300 text-xs font-medium">{STAGE_LABELS[data.memoryStage]}</span>
           </div>
+        )}
+
+        {/* Next best action */}
+        {data.nextAction && (
+          <div className="bg-white/[0.03] rounded-xl px-3 py-2.5 mb-4">
+            <p className="text-stone-300 text-xs font-medium">{data.nextAction.label}</p>
+            <p className="text-stone-500 text-[10px] mt-0.5">{data.nextAction.description}</p>
+          </div>
+        )}
+
+        {/* Queued notice */}
+        {(data.queuedCount ?? 0) > 0 && (
+          <p className="text-orange-400/60 text-[10px] mb-4">
+            {data.queuedCount} {data.queuedCount === 1 ? "item" : "items"} saved offline — will sync when connected.
+          </p>
         )}
 
         {/* Actions */}
@@ -290,16 +210,16 @@ export default function WalkReview({
           {onViewProperty && (
             <button
               onClick={onViewProperty}
-              className="w-full bg-green-700 hover:bg-green-600 active:scale-95 text-white font-semibold rounded-xl py-3 transition"
+              className="w-full bg-white/[0.06] hover:bg-white/10 active:scale-[0.98] text-white font-medium rounded-xl py-3 text-sm transition"
             >
-              View Property
+              View property
             </button>
           )}
           <button
             onClick={onStartNewWalk}
-            className="w-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-medium rounded-xl py-3 transition"
+            className="w-full text-stone-500 hover:text-stone-300 text-xs py-2 transition"
           >
-            Start Another Walk
+            Observe again
           </button>
         </div>
       </div>
@@ -307,58 +227,10 @@ export default function WalkReview({
   );
 }
 
-function reviewNarrative(totalItems: number, stage: MemoryStage | null): string {
-  if (stage === "established") {
-    return totalItems > 0
-      ? "Great walk. Your property memory is well established. Seasonal revisits keep it fresh."
-      : "Walk complete. Your memory is strong — revisiting across seasons adds the most value now.";
-  }
-  if (stage === "forming") {
-    return totalItems > 3
-      ? "Great walk. Your property memory is forming nicely. A couple more walks will fill in the picture."
-      : "Good progress. Each walk strengthens your property memory. Try noting a few more things next time.";
-  }
-  // Early stages or unknown
-  if (totalItems === 0) {
-    return "You completed a walk. Next time, try marking some plants and areas as you go — even rough notes help build your property memory.";
-  }
-  if (totalItems <= 3) {
-    return "Good start. Each walk adds to your property memory. The more you note, the better your recommendations will be.";
-  }
-  return "Great walk. Your property memory is getting stronger. Repeated visits across seasons will fill in the picture.";
-}
-
-function StatCard({ value, label, accent }: { value: string; label: string; accent: string }) {
-  return (
-    <div className="bg-white/5 rounded-xl py-2.5 px-3">
-      <p className={`text-lg font-bold ${accent}`}>{value}</p>
-      <p className="text-stone-500 text-[10px] mt-0.5">{label}</p>
-    </div>
-  );
-}
-
-const STAGE_CONFIG: Record<MemoryStage, { label: string; fill: number; accent: string }> = {
-  unstarted:        { label: "Not started",     fill: 0,   accent: "bg-stone-600" },
-  walked_no_origin: { label: "Needs origin",    fill: 15,  accent: "bg-amber-600" },
-  origin_only:      { label: "Origin set",      fill: 25,  accent: "bg-amber-500" },
-  forming:          { label: "Forming",         fill: 55,  accent: "bg-blue-500" },
-  established:      { label: "Established",     fill: 90,  accent: "bg-green-500" },
+const STAGE_LABELS: Record<MemoryStage, string> = {
+  unstarted: "Not started",
+  walked_no_origin: "Needs origin",
+  origin_only: "Origin set",
+  forming: "Forming",
+  established: "Established",
 };
-
-function MemoryStageIndicator({ stage }: { stage: MemoryStage }) {
-  const cfg = STAGE_CONFIG[stage];
-  return (
-    <div className="bg-white/5 rounded-xl px-4 py-3 mb-4">
-      <div className="flex items-center justify-between mb-1.5">
-        <p className="text-stone-400 text-[10px] uppercase tracking-wide">Property memory</p>
-        <p className="text-stone-300 text-xs font-medium">{cfg.label}</p>
-      </div>
-      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${cfg.accent}`}
-          style={{ width: `${cfg.fill}%` }}
-        />
-      </div>
-    </div>
-  );
-}

@@ -481,6 +481,7 @@ export default function FieldMapperShell({
       subjectPins,
       areaPins,
       nextAction,
+      noteCount: notes.length,
       memoryStage: memoryStage as MemoryStage | null,
       queuedCount,
     });
