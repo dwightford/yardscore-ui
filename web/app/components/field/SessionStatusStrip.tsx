@@ -3,104 +3,90 @@
 /**
  * SessionStatusStrip
  *
- * A thin persistent strip above the action rail that communicates
- * property-memory formation state in plain homeowner language.
+ * A thin, soft persistent strip that communicates property-memory
+ * formation in plain homeowner language. It should feel like a
+ * quiet companion whispering context — not a status dashboard.
  *
- * States drive themselves from the walk/memory context —
- * no internal jargon exposed to the user.
+ * Design rule: visually subordinate to the live scene.
  */
 
 import React from "react";
 
 export type StripState =
-  | "no_walk"            // nothing started yet
-  | "walk_active"        // walk in progress
-  | "anchor_confirmed"   // just placed an anchor
-  | "anchor_suggested"   // nudge: one more anchor would help
-  | "light_suggested"    // good time to record light
-  | "area_marked"        // just marked an area
-  | "subject_tagged"     // just tagged a plant/tree
-  | "walk_done"          // walk completed
-  | "memory_forming"     // 1-2 walks done, building up
-  | "queued"             // items saved offline, waiting to sync
-  | "synced";            // offline items just synced successfully
+  | "no_walk"
+  | "walk_active"
+  | "anchor_confirmed"
+  | "anchor_suggested"
+  | "light_suggested"
+  | "area_marked"
+  | "subject_tagged"
+  | "walk_done"
+  | "memory_forming"
+  | "queued"
+  | "synced";
 
 interface SessionStatusStripProps {
   state: StripState;
-  /** Optional supplemental detail text (overrides default message) */
   detail?: string;
-  /** Property label shown as a small prefix (e.g. "108 Buena Vista Way") */
   propertyLabel?: string;
 }
 
-const MESSAGES: Record<StripState, { icon: string; text: string; accent: string }> = {
+const MESSAGES: Record<StripState, { text: string; accent: string }> = {
   no_walk: {
-    icon: "🏠",
-    text: "Start at your front door to begin building your property map.",
-    accent: "text-stone-400",
+    text: "Ready to observe your yard.",
+    accent: "text-stone-500",
   },
   walk_active: {
-    icon: "👣",
-    text: "Walk in progress — tap to mark what you find.",
-    accent: "text-green-400",
+    text: "Observing — mark what you notice.",
+    accent: "text-green-400/70",
   },
   anchor_confirmed: {
-    icon: "📍",
-    text: "Anchor saved. This helps your map stay accurate over time.",
-    accent: "text-amber-400",
+    text: "Reference point saved.",
+    accent: "text-amber-400/70",
   },
   anchor_suggested: {
-    icon: "💡",
-    text: "One more reference point would improve your map placement.",
-    accent: "text-amber-300",
+    text: "A reference point nearby would help.",
+    accent: "text-amber-300/60",
   },
   light_suggested: {
-    icon: "☀️",
-    text: "Good time to record afternoon light for this area.",
-    accent: "text-yellow-400",
+    text: "Good light — worth recording.",
+    accent: "text-yellow-400/60",
   },
   area_marked: {
-    icon: "🌿",
-    text: "Area marked. You can refine it on your next walk.",
-    accent: "text-lime-400",
+    text: "Area noted.",
+    accent: "text-lime-400/70",
   },
   subject_tagged: {
-    icon: "🌳",
-    text: "Noted. Keep walking — you can identify it later.",
-    accent: "text-green-300",
+    text: "Noted — keep going.",
+    accent: "text-green-300/70",
   },
   walk_done: {
-    icon: "✓",
-    text: "Walk finished. Your property memory has been updated.",
-    accent: "text-sky-400",
+    text: "Walk finished. Memory updated.",
+    accent: "text-sky-400/70",
   },
   memory_forming: {
-    icon: "🗺",
-    text: "Property memory is forming. A few more walks will fill it in.",
-    accent: "text-blue-400",
+    text: "Property memory is forming.",
+    accent: "text-blue-400/60",
   },
   queued: {
-    icon: "📶",
-    text: "Some observations are saved locally. They'll sync when you're back online.",
-    accent: "text-orange-400",
+    text: "Saved locally — will sync soon.",
+    accent: "text-orange-400/60",
   },
   synced: {
-    icon: "✓",
-    text: "All offline observations have been synced.",
-    accent: "text-green-400",
+    text: "All synced.",
+    accent: "text-green-400/70",
   },
 };
 
 export default function SessionStatusStrip({ state, detail, propertyLabel }: SessionStatusStripProps) {
-  const { icon, text, accent } = MESSAGES[state];
+  const { text, accent } = MESSAGES[state];
   return (
-    <div className="w-full flex items-center gap-2 px-4 py-2 bg-black/60 backdrop-blur-sm border-b border-white/5">
-      <span className="text-base leading-none flex-none">{icon}</span>
+    <div className="w-full flex items-center gap-2 px-4 py-2 bg-black/40 backdrop-blur-sm">
       <div className="flex-1 min-w-0">
         {propertyLabel && (
-          <p className="text-stone-600 text-[10px] leading-none mb-0.5 truncate">{propertyLabel}</p>
+          <p className="text-stone-600 text-[9px] leading-none mb-0.5 truncate">{propertyLabel}</p>
         )}
-        <p className={`text-xs leading-snug ${accent}`}>
+        <p className={`text-[11px] leading-snug ${accent}`}>
           {detail ?? text}
         </p>
       </div>

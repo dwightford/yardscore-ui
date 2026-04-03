@@ -14,7 +14,7 @@ const TABS = [
   },
   {
     href: "/walk",
-    label: "Walk",
+    label: "Observe",
     icon: (active: boolean) => (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={active ? 2 : 1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />

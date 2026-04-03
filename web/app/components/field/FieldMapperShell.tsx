@@ -658,6 +658,14 @@ export default function FieldMapperShell({
     setPanelOpen(false);
   }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
 
+  // ── Sensory notes (local for now — TODO: backend endpoint) ────────────────
+  const [notes, setNotes] = useState<Array<{ category: string; text: string; at: number }>>([]);
+  const handleSaveNote = useCallback((category: string, text: string) => {
+    setNotes((prev) => [...prev, { category, text, at: Date.now() }]);
+    flashStrip("subject_tagged"); // reuse the soft confirmation
+    setPanelOpen(false);
+  }, [flashStrip]);
+
   const handleDismissReview = useCallback(() => {
     setReviewData(null);
     clearTrail();
@@ -754,6 +762,7 @@ export default function FieldMapperShell({
               onTagSubject={handleTagSubject}
               onSaveSubjectAnchor={handleSaveSubjectAnchor}
               onSaveLight={handleSaveLight}
+              onSaveNote={handleSaveNote}
               onClose={handleClosePanel}
               captureFrame={captureFrame}
               onNavigate={handleNavigate}

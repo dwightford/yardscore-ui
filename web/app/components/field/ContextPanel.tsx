@@ -42,6 +42,7 @@ export interface ContextPanelProps {
   onTagSubject: (type: string, label: string) => void;
   onSaveSubjectAnchor: (subjectType: string, label: string, anchorType: string) => void;
   onSaveLight: (direction: string, condition: string) => void;
+  onSaveNote: (category: string, text: string) => void;
   onClose: () => void;
   /** Capture a frame from the live camera for plant ID */
   captureFrame?: () => Promise<Blob | null>;
@@ -455,6 +456,58 @@ function MorePanel({ onNavigate }: { onNavigate?: (path: string) => void }) {
   );
 }
 
+function NotePanel({ onSave }: { onSave: (category: string, text: string) => void }) {
+  const CATEGORIES = [
+    { value: "notice",  label: "I notice...",    icon: "👀" },
+    { value: "smell",   label: "Smells like...", icon: "🌸" },
+    { value: "sound",   label: "I hear...",      icon: "🐦" },
+    { value: "mood",    label: "It feels...",    icon: "🌤" },
+    { value: "vista",   label: "The view...",    icon: "🏞" },
+    { value: "story",   label: "This place...",  icon: "📖" },
+  ];
+  const [category, setCategory] = useState("notice");
+  const [text, setText] = useState("");
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-stone-400 text-sm leading-relaxed">
+        What do you notice right here? It all becomes part of your property memory.
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.value}
+            onClick={() => setCategory(c.value)}
+            className={[
+              "py-2 px-2 rounded-xl text-xs font-medium transition text-center",
+              category === c.value
+                ? "bg-sky-700/50 border border-sky-500/40 text-sky-200"
+                : "bg-white/5 text-stone-500 hover:text-stone-300 border border-transparent",
+            ].join(" ")}
+          >
+            <span className="block text-base mb-0.5">{c.icon}</span>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Say it in your own words..."
+        rows={3}
+        className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-stone-600 focus:outline-none focus:border-sky-500/40 resize-none"
+      />
+      <button
+        onClick={() => { onSave(category, text); setText(""); }}
+        disabled={!text.trim()}
+        className="w-full bg-sky-700 hover:bg-sky-600 active:scale-95 text-white font-semibold rounded-xl py-3 transition disabled:opacity-40"
+      >
+        Save Note
+      </button>
+    </div>
+  );
+}
+
 // ── Main ContextPanel ─────────────────────────────────────────────────────────
 
 export default function ContextPanel({
@@ -467,6 +520,7 @@ export default function ContextPanel({
   onTagSubject,
   onSaveSubjectAnchor,
   onSaveLight,
+  onSaveNote,
   onClose,
   captureFrame,
   onIdentify,
@@ -474,10 +528,11 @@ export default function ContextPanel({
 }: ContextPanelProps) {
   const TITLES: Record<ActionMode, string> = {
     walk:     "Your Walk",
-    identify: "Identify a Plant",
-    anchor:   "Add Reference Point",
+    identify: "Identify This",
+    anchor:   "Reference Point",
     area:     "Mark an Area",
     light:    "Record Light",
+    note:     "Say What You Notice",
     more:     "More",
   };
 
@@ -510,6 +565,7 @@ export default function ContextPanel({
         {mode === "anchor"   && <AnchorPanel onSave={onSaveAnchor} />}
         {mode === "area"     && <AreaPanel onSave={onSaveArea} />}
         {mode === "light"    && <LightPanel onSave={onSaveLight} />}
+        {mode === "note"     && <NotePanel onSave={onSaveNote} />}
         {mode === "more"     && <MorePanel onNavigate={onNavigate} />}
       </div>
     </div>

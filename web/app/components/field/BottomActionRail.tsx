@@ -3,41 +3,24 @@
 /**
  * BottomActionRail
  *
- * Primary action bar at the bottom of the Field Mapper HUD.
- * Three primary actions — big, thumb-friendly, grandma-safe.
- * Secondary actions (anchor, area) accessible via "More" or
- * triggered contextually by the guided flow.
+ * Primary action surface during field observation.
+ * Canon actions: Identify This / Anchor / Note / Light
+ * Finish Walk always visible when observing.
  *
- * Layout: easy thumb reach, stable, no clutter.
+ * Design rule: calm, thumb-friendly, garden stays primary.
+ * The rail is soft persistent chrome — not a toolbar.
  */
 
 import React from "react";
 
 export type ActionMode =
-  | "walk"       // Start Walk / Continue Walk
+  | "walk"       // Walk controls (start/resume)
   | "identify"   // Identify a plant
-  | "anchor"     // Add Anchor (reference point)
-  | "area"       // Mark Area (patch)
-  | "light"      // Record Light
+  | "anchor"     // Drop an anchor
+  | "area"       // Mark an area
+  | "light"      // Record light
+  | "note"       // Say what you notice (sensory/narrative)
   | "more";      // Secondary overflow
-
-interface Action {
-  mode: ActionMode;
-  icon: string;
-  label: string;
-  primary?: boolean;
-}
-
-const PRIMARY_ACTIONS: Action[] = [
-  { mode: "walk",     icon: "👣", label: "Walk",     primary: true },
-  { mode: "identify", icon: "🔍", label: "Identify", primary: true },
-  { mode: "anchor",   icon: "📍", label: "Anchor",   primary: true },
-  { mode: "light",    icon: "☀️", label: "Light",    primary: true },
-];
-
-const SECONDARY_ACTIONS: Action[] = [
-  { mode: "area",     icon: "🌿", label: "Mark Area" },
-];
 
 interface BottomActionRailProps {
   activeMode: ActionMode;
@@ -52,93 +35,90 @@ export default function BottomActionRail({
   onSelect,
   onFinishWalk,
 }: BottomActionRailProps) {
-  const [showMore, setShowMore] = React.useState(false);
-
   return (
     <div
-      className="w-full bg-black/75 backdrop-blur-md border-t border-white/10"
+      className="w-full bg-black/60 backdrop-blur-xl border-t border-white/[0.06]"
       style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
     >
-      {/* Secondary actions (expanded) */}
-      {showMore && (
-        <div className="flex items-center justify-center gap-2 px-4 py-2 border-b border-white/5">
-          {SECONDARY_ACTIONS.map(({ mode, icon, label }) => (
-            <button
-              key={mode}
-              onClick={() => { onSelect(mode); setShowMore(false); }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/8 text-white/70 hover:text-white text-xs font-medium transition active:scale-95"
-            >
-              <span className="text-sm">{icon}</span>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Finish Walk bar — visible when walking */}
+      {/* Finish bar — always visible when observing */}
       {walkActive && onFinishWalk && (
-        <div className="flex items-center justify-center px-4 py-2 border-b border-white/5">
+        <div className="flex items-center justify-center px-4 py-1.5">
           <button
             onClick={onFinishWalk}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-stone-700 hover:bg-stone-600 text-stone-200 text-sm font-semibold transition active:scale-95"
+            className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/[0.06] hover:bg-white/10 text-stone-400 hover:text-stone-200 text-xs font-medium transition active:scale-95"
           >
-            <span className="w-2 h-2 rounded-full bg-red-400" />
-            Finish Walk
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400/80" />
+            Finish
           </button>
         </div>
       )}
 
-      {/* Primary actions */}
-      <div className="flex items-end justify-around px-2 pt-2">
-        {PRIMARY_ACTIONS.map(({ mode, icon, label }) => {
-          const isActive = mode === activeMode;
-          const isWalkBtn = mode === "walk";
-          const displayLabel = isWalkBtn
-            ? walkActive ? "Walking" : "Start Walk"
-            : label;
-
-          return (
-            <button
-              key={mode}
-              onClick={() => onSelect(mode)}
-              className={[
-                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-                "min-w-[56px] focus:outline-none active:scale-95",
-                isActive
-                  ? "bg-white/15 text-white"
-                  : "text-white/50 hover:text-white/80",
-                isWalkBtn && walkActive && !isActive
-                  ? "text-green-400/70"
-                  : "",
-              ].join(" ")}
-            >
-              <span className="text-2xl leading-none">{icon}</span>
-              <span className="text-[10px] leading-none font-medium tracking-wide">
-                {displayLabel}
-              </span>
-              {isActive && (
-                <span className="w-1 h-1 rounded-full bg-white/70 mt-0.5" />
-              )}
-              {isWalkBtn && walkActive && !isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mt-0.5" />
-              )}
-            </button>
-          );
-        })}
-
-        {/* More toggle */}
-        <button
-          onClick={() => setShowMore(!showMore)}
-          className={[
-            "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all",
-            "min-w-[44px] focus:outline-none active:scale-95",
-            showMore ? "text-white/80" : "text-white/30 hover:text-white/50",
-          ].join(" ")}
-        >
-          <span className="text-lg leading-none">⋯</span>
-          <span className="text-[10px] leading-none font-medium">More</span>
-        </button>
+      {/* Actions */}
+      <div className="flex items-center justify-around px-1 pt-1">
+        <RailButton
+          icon="🔍"
+          label="Identify"
+          active={activeMode === "identify"}
+          onClick={() => onSelect("identify")}
+        />
+        <RailButton
+          icon="📍"
+          label="Anchor"
+          active={activeMode === "anchor"}
+          onClick={() => onSelect("anchor")}
+        />
+        <RailButton
+          icon="💬"
+          label="Note"
+          active={activeMode === "note"}
+          onClick={() => onSelect("note")}
+        />
+        <RailButton
+          icon="☀️"
+          label="Light"
+          active={activeMode === "light"}
+          onClick={() => onSelect("light")}
+        />
+        <RailButton
+          icon="🌿"
+          label="Area"
+          active={activeMode === "area"}
+          onClick={() => onSelect("area")}
+          subtle
+        />
       </div>
     </div>
+  );
+}
+
+function RailButton({
+  icon,
+  label,
+  active,
+  onClick,
+  subtle,
+}: {
+  icon: string;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  subtle?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all",
+        "min-w-[48px] focus:outline-none active:scale-95",
+        active
+          ? "text-white"
+          : subtle
+            ? "text-white/25 hover:text-white/50"
+            : "text-white/40 hover:text-white/70",
+      ].join(" ")}
+    >
+      <span className="text-lg leading-none">{icon}</span>
+      <span className="text-[9px] leading-none font-medium tracking-wide">{label}</span>
+    </button>
   );
 }

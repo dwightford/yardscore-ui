@@ -490,7 +490,7 @@ export default function GuidedWalkFlow({
                     Start at your front door
                   </h1>
                   <p className="text-stone-400 text-sm leading-relaxed">
-                    This gives your map a home base. Point the camera at your door and tap below.
+                    This gives your yard a home base. Point the camera at your door and tap below.
                   </p>
                 </div>
 
@@ -501,7 +501,7 @@ export default function GuidedWalkFlow({
                   disabled={originSaving}
                   className="w-full bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
                 >
-                  {originSaving ? "Starting..." : "Set Front Door & Start Walk"}
+                  {originSaving ? "Starting..." : "Set Front Door & Start Observing"}
                 </button>
 
                 <button
@@ -509,7 +509,7 @@ export default function GuidedWalkFlow({
                   disabled={walkStarting}
                   className="text-stone-500 hover:text-stone-300 text-sm transition"
                 >
-                  {walkStarting ? "Starting..." : "Skip — start walking"}
+                  {walkStarting ? "Starting..." : "Skip — start observing"}
                 </button>
               </div>
             ) : (
@@ -517,8 +517,8 @@ export default function GuidedWalkFlow({
                 <div>
                   <h1 className="text-white text-xl font-semibold mb-2">
                     {memCtx && memCtx.walkCount > 0
-                      ? `Walk ${memCtx.walkCount + 1}`
-                      : "Walk your property"}
+                      ? "Resume observing"
+                      : "Observe your yard"}
                   </h1>
                   <p className="text-stone-400 text-sm leading-relaxed">
                     {beginWalkBody(memCtx)}
@@ -547,7 +547,7 @@ export default function GuidedWalkFlow({
                   disabled={walkStarting}
                   className="w-full bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white font-semibold rounded-xl py-3.5 transition disabled:opacity-60"
                 >
-                  {walkStarting ? "Starting..." : "Begin Walk"}
+                  {walkStarting ? "Starting..." : "Start Observing"}
                 </button>
 
                 {propertyLabel && (
@@ -654,15 +654,15 @@ function InlineError({ message }: { message: string }) {
 
 function beginWalkBody(ctx: MemoryContext | null): string {
   if (!ctx || ctx.walkCount === 0) {
-    return "Walk naturally through your yard. The app quietly builds a map as you move — you just mark what you see along the way.";
+    return "Walk your yard naturally. The app quietly remembers what you see — just mark anything that catches your eye.";
   }
   if (ctx.stage === "forming") {
-    return "Your property memory is forming. This walk will help fill it in — mark anything new you notice.";
+    return "Your yard memory is building. Walk and notice what's new — every observation makes it stronger.";
   }
   if (ctx.stage === "established") {
-    return "Your property memory is well established. Walk to add seasonal detail or check on what you've noted before.";
+    return "Your yard memory is strong. Walk to add seasonal detail or notice what's changed.";
   }
-  return "Each walk adds to your property memory. The more you note, the better your recommendations will be.";
+  return "Each walk adds to what the app knows about your yard. Mark anything you notice.";
 }
 
 // ── Context chip ─────────────────────────────────────────────────────────────
