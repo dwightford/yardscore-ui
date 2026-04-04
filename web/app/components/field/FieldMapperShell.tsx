@@ -107,6 +107,7 @@ export default function FieldMapperShell({
   const [reviewData, setReviewData] = useState<WalkReviewData | null>(null);
   const [nextObs, setNextObs] = useState<fieldApi.NextObservation | null>(null);
   const [memStage, setMemStage] = useState<fieldApi.MemoryStage | null>(null);
+  const [notes, setNotes] = useState<Array<{ category: string; text: string; at: number }>>([]);
   const [queuedCount, setQueuedCount] = useState(() => {
     expireStale();
     return pendingCount();
@@ -674,7 +675,6 @@ export default function FieldMapperShell({
   }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
 
   // ── Sensory notes (local for now — TODO: backend endpoint) ────────────────
-  const [notes, setNotes] = useState<Array<{ category: string; text: string; at: number }>>([]);
   const handleSaveNote = useCallback((category: string, text: string) => {
     setNotes((prev) => [...prev, { category, text, at: Date.now() }]);
     flashStrip("subject_tagged"); // reuse the soft confirmation
