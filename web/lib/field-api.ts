@@ -410,11 +410,31 @@ export interface PlantIdResult {
   confidence: number;
 }
 
+export type PhotoOrgan = "auto" | "leaf" | "bark" | "flower" | "fruit";
+
 export async function identifyPlant(
   imageBlob: Blob,
 ): Promise<PlantIdResult | null> {
+  return identifyPlantMulti([{ blob: imageBlob, organ: "auto" }]);
+}
+
+/** Multi-shot identify: send multiple images (leaf, bark, flower, etc.) for better accuracy. */
+export async function identifyPlantMulti(
+  shots: Array<{ blob: Blob; organ: PhotoOrgan }>,
+): Promise<PlantIdResult | null> {
+  if (shots.length === 0) return null;
+
   const form = new FormData();
-  form.append("file", imageBlob, "capture.jpg");
+  if (shots.length === 1) {
+    // Single shot — backward compat with proxy's "file" field
+    form.append("file", shots[0].blob, "capture.jpg");
+  } else {
+    // Multi-shot — use file_0, organ_0, file_1, organ_1, ...
+    shots.forEach((s, i) => {
+      form.append(`file_${i}`, s.blob, `capture_${i}.jpg`);
+      form.append(`organ_${i}`, s.organ);
+    });
+  }
 
   const res = await fetch("/plantnet-proxy", {
     method: "POST",

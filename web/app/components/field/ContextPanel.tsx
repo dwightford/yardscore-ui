@@ -131,6 +131,14 @@ function WalkPanel({ state, onStart, onEnd }: {
   );
 }
 
+const ORGAN_LABELS: Array<{ key: string; label: string; icon: string }> = [
+  { key: "auto",   label: "Whole plant", icon: "🌿" },
+  { key: "leaf",   label: "Leaf",        icon: "🍃" },
+  { key: "bark",   label: "Bark",        icon: "🪵" },
+  { key: "flower", label: "Flower",      icon: "🌸" },
+  { key: "fruit",  label: "Fruit/Seed",  icon: "🫐" },
+];
+
 function IdentifyPanel({
   onTag,
   onTagAsAnchor,
@@ -149,21 +157,36 @@ function IdentifyPanel({
   const [idResult, setIdResult] = useState<PlantIdResult | null>(null);
   const [idError, setIdError] = useState<string | null>(null);
 
-  const handleIdentify = async () => {
+  // Multi-shot: stack of captured images
+  const [shots, setShots] = useState<Array<{ blob: Blob; organ: string }>>([]);
+  const [nextOrgan, setNextOrgan] = useState("auto");
+
+  const handleCapture = async () => {
     if (!captureFrame) return;
+    try {
+      const blob = await captureFrame();
+      if (!blob) return;
+      setShots((prev) => [...prev, { blob, organ: nextOrgan }]);
+      // Auto-advance organ suggestion
+      const usedOrgans = new Set([...shots.map((s) => s.organ), nextOrgan]);
+      const next = ORGAN_LABELS.find((o) => !usedOrgans.has(o.key));
+      if (next) setNextOrgan(next.key);
+    } catch {}
+  };
+
+  const handleIdentify = async () => {
+    if (shots.length === 0) return;
     setIdentifying(true);
     setIdError(null);
     try {
-      const blob = await captureFrame();
-      if (!blob) { setIdError("Could not capture image"); return; }
-      const { identifyPlant } = await import("@/lib/field-api");
-      const result = await identifyPlant(blob);
+      const { identifyPlantMulti } = await import("@/lib/field-api");
+      const result = await identifyPlantMulti(shots as any);
       if (result) {
         setIdResult(result);
         setLabel(result.commonName || result.scientificName);
         onIdentify?.(result);
       } else {
-        setIdError("Could not identify — try a closer shot");
+        setIdError("Could not identify — try different angles");
       }
     } catch {
       setIdError("Identification failed");
@@ -182,23 +205,84 @@ function IdentifyPanel({
     setLabel("");
     setIdResult(null);
     setUseAsAnchor(false);
+    setShots([]);
+    setNextOrgan("auto");
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-stone-300 text-sm leading-relaxed">
-        Point your camera at a plant. Note what it is and keep walking — you can name it later.
+      <p className="text-stone-400 text-sm leading-relaxed">
+        Snap one or more photos — leaf, bark, flower, the whole plant. More angles = better ID.
       </p>
 
-      {/* Camera ID button */}
+      {/* Capture button + shot counter */}
       {captureFrame && (
-        <button
-          onClick={handleIdentify}
-          disabled={identifying}
-          className="w-full bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-semibold rounded-xl py-3 transition disabled:opacity-50"
-        >
-          {identifying ? "Identifying..." : "Identify from Camera"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleCapture}
+            className="flex-1 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-semibold rounded-xl py-3 transition"
+          >
+            {shots.length === 0 ? "Capture" : `Capture (${shots.length})`}
+          </button>
+          {shots.length > 0 && (
+            <button
+              onClick={handleIdentify}
+              disabled={identifying}
+              className="bg-white/10 hover:bg-white/15 active:scale-95 text-white font-medium rounded-xl px-4 py-3 text-sm transition disabled:opacity-50"
+            >
+              {identifying ? "..." : "Identify"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Shot chips — show what's been captured */}
+      {shots.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap">
+          {shots.map((s, i) => {
+            const org = ORGAN_LABELS.find((o) => o.key === s.organ);
+            return (
+              <span
+                key={i}
+                className="bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5 text-[10px] text-emerald-300 flex items-center gap-1"
+              >
+                <span>{org?.icon ?? "📷"}</span>
+                {org?.label ?? s.organ}
+              </span>
+            );
+          })}
+          {shots.length < 5 && (
+            <button
+              onClick={() => {
+                const next = ORGAN_LABELS.find((o) => !shots.some((s) => s.organ === o.key));
+                if (next) setNextOrgan(next.key);
+              }}
+              className="text-[10px] text-stone-500 hover:text-stone-300 px-1"
+            >
+              + more
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Organ picker for next shot */}
+      {shots.length > 0 && shots.length < 5 && (
+        <div className="flex gap-1.5">
+          {ORGAN_LABELS.filter((o) => !shots.some((s) => s.organ === o.key)).map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setNextOrgan(o.key)}
+              className={[
+                "px-2 py-1 rounded-lg text-[10px] transition",
+                nextOrgan === o.key
+                  ? "bg-emerald-800/50 text-emerald-300"
+                  : "text-stone-500 hover:text-stone-300",
+              ].join(" ")}
+            >
+              {o.icon} {o.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* ID result */}
@@ -209,14 +293,12 @@ function IdentifyPanel({
             <p className="text-emerald-500/70 text-xs italic">{idResult.scientificName}</p>
           )}
           <p className="text-emerald-600 text-[10px] mt-1">
-            {idResult.family} · {Math.round(idResult.confidence * 100)}% confidence
+            {idResult.family} · {Math.round(idResult.confidence * 100)}% · {shots.length} {shots.length === 1 ? "photo" : "photos"}
           </p>
         </div>
       )}
 
-      {idError && (
-        <p className="text-amber-400 text-xs">{idError}</p>
-      )}
+      {idError && <p className="text-amber-400 text-xs">{idError}</p>}
 
       <div className="flex gap-2">
         {["tree", "shrub", "groundcover", "other"].map((t) => (
@@ -225,15 +307,14 @@ function IdentifyPanel({
             onClick={() => setType(t)}
             className={[
               "flex-1 py-2 rounded-xl text-xs font-medium transition",
-              type === t
-                ? "bg-green-700 text-white"
-                : "bg-white/8 text-stone-400 hover:text-white",
+              type === t ? "bg-green-700 text-white" : "bg-white/8 text-stone-400 hover:text-white",
             ].join(" ")}
           >
             {t === "groundcover" ? "Cover" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
+
       <input
         value={label}
         onChange={(e) => setLabel(e.target.value)}
