@@ -146,7 +146,8 @@ function scoreBgRing(v: number): string {
   return "border-red-400/50 bg-red-400/10";
 }
 
-function humanize(s: string): string {
+function humanize(s: string | undefined | null): string {
+  if (!s) return "";
   return s
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
