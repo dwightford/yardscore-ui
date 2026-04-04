@@ -1,76 +1,78 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+/**
+ * /map — Layered property map
+ *
+ * Shows all field mapper data on a satellite map with toggle-able layers:
+ * - Walk trails (breadcrumb polylines)
+ * - Anchors (reference point pins)
+ * - Plants (subjects colored by ecological layer)
+ * - Areas (patches as soft regions)
+ * - Light (observations colored by level)
+ * - Legacy entities (old scan data, off by default)
+ */
+
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 
-// ── Dynamic imports (Leaflet does not support SSR) ────────────────────────────
-
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false },
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false },
-);
-const Polygon = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Polygon),
-  { ssr: false },
-);
-const CircleMarker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.CircleMarker),
-  { ssr: false },
-);
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false },
-);
-const Popup = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
-  { ssr: false },
-);
-const Tooltip = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Tooltip),
-  { ssr: false },
-);
-
-// ── Config ────────────────────────────────────────────────────────────────────
+const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
+const Polygon = dynamic(() => import("react-leaflet").then((m) => m.Polygon), { ssr: false });
+const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
+const Polyline = dynamic(() => import("react-leaflet").then((m) => m.Polyline), { ssr: false });
+const Tooltip = dynamic(() => import("react-leaflet").then((m) => m.Tooltip), { ssr: false });
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const DEFAULT_CENTER: [number, number] = [35.91, -79.05];
-const DEFAULT_ZOOM = 19; // property level — ESRI satellite available at this zoom
+const DEFAULT_CENTER: [number, number] = [35.953, -79.054];
+const DEFAULT_ZOOM = 19;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface LandUnit {
   id: string;
   name: string;
-  land_unit_type: string;
-  address: string | null;
   lat?: number | null;
   lon?: number | null;
 }
 
-interface Parcel {
+interface Anchor {
   id: string;
-  land_unit_id: string;
-  geojson?: GeoJSON.Geometry | null;
+  anchor_type: string;
+  label: string;
+  device_lat: number | null;
+  device_lng: number | null;
 }
 
-interface Entity {
+interface Subject {
   id: string;
-  land_unit_id: string;
-  label: string;
-  entity_type: string;
-  size_class: string | null;
-  estimated_lat: number | null;
-  estimated_lng: number | null;
-  observation_count: number;
-  first_observed: string | null;
-  last_observed: string | null;
+  subject_type: string;
+  label: string | null;
+  device_lat: number | null;
+  device_lng: number | null;
+  confidence: string;
+}
+
+interface Patch {
+  id: string;
+  patch_type: string;
+  label: string | null;
+  device_lat: number | null;
+  device_lng: number | null;
+}
+
+interface WalkSession {
+  id: string;
+  status: string;
+  started_at: string;
+  breadcrumb_count?: number;
+}
+
+interface Breadcrumb {
+  device_lat: number | null;
+  device_lng: number | null;
 }
 
 interface LightObs {
@@ -79,104 +81,79 @@ interface LightObs {
   light_level: string;
   device_lat: number | null;
   device_lng: number | null;
-  observed_at: string;
 }
 
-type MapLayer = "plants" | "light" | "structure";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function entityColor(type: string): string {
-  const t = type.toLowerCase();
-  if (t === "tree") return "#84cc16";
-  if (t === "shrub") return "#22c55e";
-  if (t === "herb") return "#a3e635";
-  if (t === "ground_cover") return "#65a30d";
-  if (t === "structure") return "#6b7280";
-  return "#84cc16";
+interface Entity {
+  id: string;
+  label: string;
+  entity_type: string;
+  estimated_lat: number | null;
+  estimated_lng: number | null;
 }
 
-function entityRadius(type: string): number {
-  const t = type.toLowerCase();
-  if (t === "tree") return 10;
-  if (t === "shrub") return 7;
-  if (t === "herb") return 5;
-  if (t === "ground_cover") return 4;
-  return 6;
+type MapLayer = "trails" | "anchors" | "plants" | "areas" | "light" | "legacy";
+
+const LAYER_CONFIG: Array<{ key: MapLayer; label: string; color: string; defaultOn: boolean }> = [
+  { key: "trails",  label: "Trails",  color: "#4ade80", defaultOn: true },
+  { key: "anchors", label: "Anchors", color: "#f59e0b", defaultOn: true },
+  { key: "plants",  label: "Plants",  color: "#22c55e", defaultOn: true },
+  { key: "areas",   label: "Areas",   color: "#a3e635", defaultOn: false },
+  { key: "light",   label: "Light",   color: "#fbbf24", defaultOn: false },
+  { key: "legacy",  label: "Scans",   color: "#6b7280", defaultOn: false },
+];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function subjectColor(type: string): string {
+  if (type === "tree") return "#22c55e";
+  if (type === "shrub") return "#84cc16";
+  if (type === "groundcover") return "#65a30d";
+  return "#4ade80";
 }
 
-
-/** Convert GeoJSON Polygon/MultiPolygon coordinates to Leaflet LatLng arrays */
-function geojsonToLatLngs(
-  geometry: GeoJSON.Geometry,
-): [number, number][][] {
-  if (geometry.type === "Polygon") {
-    return (geometry as GeoJSON.Polygon).coordinates.map((ring) =>
-      ring.map(([lng, lat]) => [lat, lng] as [number, number]),
-    );
-  }
-  if (geometry.type === "MultiPolygon") {
-    return (geometry as GeoJSON.MultiPolygon).coordinates.flatMap((poly) =>
-      poly.map((ring) =>
-        ring.map(([lng, lat]) => [lat, lng] as [number, number]),
-      ),
-    );
-  }
-  return [];
+function lightColor(level: string): string {
+  if (level === "full_sun") return "#fbbf24";
+  if (level === "part_sun") return "#f59e0b";
+  if (level === "dappled") return "#d97706";
+  if (level === "part_shade") return "#92400e";
+  return "#78350f";
 }
 
-/** Create a colored circle divIcon for entity markers — supports drag */
-function makeEntityIcon(type: string) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const L = require("leaflet");
-  const size = entityRadius(type) * 2 + 4; // +4 for border
-  const color = entityColor(type);
-  return L.divIcon({
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    html: `<div style="
-      width:${size}px;height:${size}px;border-radius:50%;
-      background:${color};border:2px solid rgba(255,255,255,0.6);
-      box-shadow:0 1px 4px rgba(0,0,0,0.5);
-      cursor:grab;
-    "></div>`,
-  });
+function patchColor(type: string): string {
+  if (type === "lawn") return "#86efac";
+  if (type === "mulch") return "#a16207";
+  if (type === "groundcover") return "#65a30d";
+  if (type === "mixed_bed") return "#4ade80";
+  if (type === "leaf_litter") return "#854d0e";
+  if (type === "violet_zone") return "#c084fc";
+  return "#6b7280";
 }
 
-/** Update entity position via API after drag */
-async function updateEntityPosition(token: string | undefined, entityId: string, lat: number, lng: number) {
-  try {
-    await apiFetch(token, `${API}/entities/${entityId}/position`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lng }),
-    });
-  } catch {
-    console.error("Failed to update entity position");
-  }
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString();
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
   const { data: session } = useSession();
-  const tokenRef = useRef<string | undefined>(undefined);
-  useEffect(() => { tokenRef.current = (session as any)?.apiToken; }, [session]);
+  const token = (session as any)?.apiToken as string | undefined;
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   const [places, setPlaces] = useState<LandUnit[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [entities, setEntities] = useState<Entity[]>([]);
-  const [lightObs, setLightObs] = useState<LightObs[]>([]);
-  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(new Set(["plants"]));
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  // Layer data
+  const [anchors, setAnchors] = useState<Anchor[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [patches, setPatches] = useState<Patch[]>([]);
+  const [walks, setWalks] = useState<WalkSession[]>([]);
+  const [trails, setTrails] = useState<Array<[number, number][]>>([]);
+  const [lightObs, setLightObs] = useState<LightObs[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
+
+  // Layer toggles
+  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(
+    new Set(LAYER_CONFIG.filter((l) => l.defaultOn).map((l) => l.key)),
+  );
 
   function toggleLayer(layer: MapLayer) {
     setActiveLayers((prev) => {
@@ -187,113 +164,130 @@ export default function MapPage() {
     });
   }
 
-  // ── Load land units ──────────────────────────────────────────────────────
-
-  const token = (session as any)?.apiToken as string | undefined;
+  // ── Load places ────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!token) return;
-    (async () => {
-      try {
-        const res = await apiFetch(token, `${API}/land_units`);
-        if (!res.ok) throw new Error(await res.text());
-        const data: LandUnit[] = await res.json();
-        setPlaces(data);
-        if (data.length > 0) setSelectedId(data[0].id);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to load places.");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    apiFetch(token, `${API}/land_units`)
+      .then((r) => r.json())
+      .then((data) => {
+        const units: LandUnit[] = Array.isArray(data) ? data : [];
+        setPlaces(units);
+        if (units.length > 0) setSelectedId(units[0].id);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [token]);
 
-  // ── Load parcels + entities when selection changes ───────────────────────
+  // ── Load all layer data when property changes ──────────────────────────
 
-  const loadPlaceData = useCallback(async (landUnitId: string) => {
-    setParcels([]);
-    setEntities([]);
-    setLightObs([]);
-    try {
-      const [parcelsRes, entitiesRes, lightRes] = await Promise.all([
-        apiFetch(tokenRef.current, `${API}/parcels?land_unit_id=${landUnitId}`),
-        apiFetch(tokenRef.current, `${API}/entities?land_unit_id=${landUnitId}`),
-        apiFetch(tokenRef.current, `${API}/light-observations?land_unit_id=${landUnitId}`),
-      ]);
-      if (parcelsRes.ok) {
-        const parcelList = await parcelsRes.json();
-        // Fetch detail with geometry for each parcel
-        const withGeom = await Promise.all(
-          parcelList.map(async (p: Parcel) => {
-            try {
-              const dr = await apiFetch(tokenRef.current, `${API}/parcels/${p.id}`);
-              if (dr.ok) return await dr.json();
-              return p;
-            } catch (e) { return p; }
-          })
-        );
-        setParcels(withGeom);
-      }
-      if (entitiesRes.ok) {
-        const e: Entity[] = await entitiesRes.json();
-        setEntities(e);
-      }
-      if (lightRes.ok) {
-        const l: LightObs[] = await lightRes.json();
-        setLightObs(l);
-      }
-    } catch {
-      // non-critical — map still renders
+  const loadData = useCallback(async (id: string) => {
+    const t = tokenRef.current;
+    if (!t) return;
+
+    const [anchorsRes, subjectsRes, patchesRes, walksRes, lightRes, entitiesRes] = await Promise.all([
+      apiFetch(t, `${API}/land_units/${id}/anchors`).catch(() => null),
+      apiFetch(t, `${API}/land_units/${id}/subjects`).catch(() => null),
+      apiFetch(t, `${API}/land_units/${id}/patches`).catch(() => null),
+      apiFetch(t, `${API}/land_units/${id}/walk-sessions`).catch(() => null),
+      apiFetch(t, `${API}/light-observations?land_unit_id=${id}`).catch(() => null),
+      apiFetch(t, `${API}/entities?land_unit_id=${id}`).catch(() => null),
+    ]);
+
+    if (anchorsRes?.ok) { const d = await anchorsRes.json(); setAnchors(Array.isArray(d) ? d : []); } else setAnchors([]);
+    if (subjectsRes?.ok) { const d = await subjectsRes.json(); setSubjects(Array.isArray(d) ? d : []); } else setSubjects([]);
+    if (patchesRes?.ok) { const d = await patchesRes.json(); setPatches(Array.isArray(d) ? d : []); } else setPatches([]);
+    if (lightRes?.ok) { const d = await lightRes.json(); setLightObs(Array.isArray(d) ? d : []); } else setLightObs([]);
+    if (entitiesRes?.ok) { const d = await entitiesRes.json(); setEntities(Array.isArray(d) ? d : []); } else setEntities([]);
+
+    // Load walk sessions + fetch breadcrumbs for each completed walk
+    if (walksRes?.ok) {
+      const w: WalkSession[] = await walksRes.json();
+      setWalks(Array.isArray(w) ? w : []);
+
+      // Fetch breadcrumbs for the 5 most recent walks with crumbs
+      const recentWalks = (Array.isArray(w) ? w : [])
+        .filter((ws) => ws.status === "completed" && (ws.breadcrumb_count ?? 0) > 0)
+        .slice(0, 5);
+
+      const trailPromises = recentWalks.map(async (ws) => {
+        try {
+          const r = await apiFetch(t, `${API}/field/walk-sessions/${ws.id}`);
+          if (!r.ok) return null;
+          const detail = await r.json();
+          // The session detail endpoint doesn't return breadcrumb coords directly.
+          // We'll use the breadcrumbs that are stored — TODO: add breadcrumb list endpoint
+          return null;
+        } catch { return null; }
+      });
+      await Promise.all(trailPromises);
+      // For now, trails come from breadcrumbs table — need an endpoint.
+      // Leave trails empty until we add GET /walk-sessions/:id/breadcrumbs
+      setTrails([]);
+    } else {
+      setWalks([]);
+      setTrails([]);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedId) loadPlaceData(selectedId);
-  }, [selectedId, loadPlaceData]);
+    if (selectedId) loadData(selectedId);
+  }, [selectedId, loadData]);
 
-  // ── Derived values ───────────────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────────────
 
   const selectedPlace = places.find((p) => p.id === selectedId) ?? null;
   const center: [number, number] =
     selectedPlace?.lat && selectedPlace?.lon
-      ? [selectedPlace.lat, selectedPlace.lon]
+      ? [Number(selectedPlace.lat), Number(selectedPlace.lon)]
       : DEFAULT_CENTER;
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // Layer counts for toggle pills
+  const layerCounts: Record<MapLayer, number> = {
+    trails: walks.filter((w) => (w.breadcrumb_count ?? 0) > 0).length,
+    anchors: anchors.filter((a) => a.device_lat).length,
+    plants: subjects.filter((s) => s.device_lat).length,
+    areas: patches.filter((p) => p.device_lat).length,
+    light: lightObs.filter((l) => l.device_lat).length,
+    legacy: entities.filter((e) => e.estimated_lat).length,
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-[#07110c] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-lime-300/30 border-t-lime-300 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (places.length === 0) {
+    return (
+      <div className="h-screen bg-[#07110c] flex flex-col items-center justify-center gap-4 px-6">
+        <p className="text-white text-lg font-semibold">No properties yet</p>
+        <p className="text-stone-400 text-sm text-center">Start observing your yard to see it on the map.</p>
+        <a href="/walk" className="bg-green-600 hover:bg-green-500 text-white font-medium rounded-xl px-6 py-3 text-sm transition">
+          Start observing
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-[#07110c]">
-      {/* Nav */}
-      <nav className="flex-none border-b border-white/5 bg-[#07110c]">
-        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
-          <a href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-white">YardScore</span>
-          </a>
-          <div className="flex items-center gap-6 text-xs text-zinc-400">
-            <a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a>
-            <a href="/map" className="text-lime-300 font-medium">Map</a>
-            <a href="/walk" className="hover:text-white transition-colors">Observe →</a>
-          </div>
-        </div>
-      </nav>
-
-      {/* Place selector chips */}
+      {/* Property selector (if multiple) */}
       {places.length > 1 && (
-        <div className="flex-none border-b border-white/5 px-4 py-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex-none border-b border-white/5 px-4 py-2 overflow-x-auto">
+          <div className="flex gap-2">
             {places.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition ${
                   selectedId === p.id
                     ? "bg-lime-300 text-zinc-950 border-lime-300"
-                    : "bg-white/5 text-zinc-300 border-white/10 hover:border-lime-300/50"
+                    : "bg-white/5 text-zinc-300 border-white/10"
                 }`}
               >
                 {p.name}
@@ -303,207 +297,170 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* Map area */}
+      {/* Map */}
       <div className="flex-1 relative">
-        {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#07110c]">
-            <div className="w-10 h-10 border-4 border-lime-300 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : error ? (
-          <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700 max-w-sm text-center">
-              {error}
-            </div>
-          </div>
-        ) : places.length === 0 ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-4">
-            <div className="text-4xl">&#127807;</div>
-            <p className="font-semibold text-gray-700">Observe your yard first</p>
-            <p className="text-sm text-gray-400 text-center max-w-xs">
-              Create a place and upload photos before viewing the map.
-            </p>
-            <a
-              href="/walk"
-              className="bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-semibold px-5 py-2.5 rounded-lg transition-colors text-sm"
-            >
-              Start observing
-            </a>
-          </div>
-        ) : (
-          <MapContainer
-            center={center}
-            zoom={DEFAULT_ZOOM}
+        <MapContainer
+          center={center}
+          zoom={DEFAULT_ZOOM}
+          maxZoom={20}
+          className="w-full h-full"
+          style={{ background: "#07110c" }}
+        >
+          <TileLayer
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             maxZoom={20}
-            className="w-full h-full"
-            style={{ background: "#f8f4ef" }}
-          >
-            <TileLayer
-              attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxZoom={20}
+          />
+
+          {/* ── Trail layer ──────────────────────────────────── */}
+          {activeLayers.has("trails") && trails.map((trail, i) => (
+            <Polyline
+              key={`trail-${i}`}
+              positions={trail}
+              pathOptions={{ color: "#4ade80", weight: 2, opacity: 0.5 }}
             />
+          ))}
 
-            {/* Parcel polygons */}
-            {parcels.map((parcel) => {
-              if (!parcel.geojson) return null;
-              const rings = geojsonToLatLngs(parcel.geojson);
-              if (rings.length === 0) return null;
-              return (
-                <Polygon
-                  key={parcel.id}
-                  positions={rings}
-                  pathOptions={{
-                    color: "#52b788",
-                    weight: 3,
-                    fillColor: "#2d6a4f",
-                    fillOpacity: 0.15,
-                  }}
-                />
-              );
-            })}
+          {/* ── Anchor layer ─────────────────────────────────── */}
+          {activeLayers.has("anchors") && anchors.map((a) => {
+            if (!a.device_lat || !a.device_lng) return null;
+            return (
+              <CircleMarker
+                key={`anchor-${a.id}`}
+                center={[Number(a.device_lat), Number(a.device_lng)]}
+                radius={7}
+                pathOptions={{
+                  color: "#f59e0b",
+                  fillColor: "#f59e0b",
+                  fillOpacity: 0.8,
+                  weight: 2,
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -8]} permanent={false}>
+                  <span style={{ fontSize: 11 }}>{a.label}</span>
+                </Tooltip>
+              </CircleMarker>
+            );
+          })}
 
-            {/* Entity markers — colored circles, draggable, tap for details */}
-            {activeLayers.has("plants") && entities.map((entity) => {
-              if (entity.estimated_lat == null || entity.estimated_lng == null)
-                return null;
-              const icon = makeEntityIcon(entity.entity_type);
-              return (
-                <Marker
-                  key={entity.id}
-                  position={[entity.estimated_lat, entity.estimated_lng]}
-                  icon={icon}
-                  draggable={true}
-                  eventHandlers={{
-                    dragend: (e) => {
-                      const pos = e.target.getLatLng();
-                      setEntities((prev) =>
-                        prev.map((ent) =>
-                          ent.id === entity.id
-                            ? { ...ent, estimated_lat: pos.lat, estimated_lng: pos.lng }
-                            : ent
-                        )
-                      );
-                      updateEntityPosition(tokenRef.current, entity.id, pos.lat, pos.lng);
-                    },
-                  }}
-                >
-                  <Popup>
-                    <div className="text-sm space-y-1.5 min-w-[180px] p-1" style={{ color: "#1a1a1a" }}>
-                      <p className="font-bold text-base" style={{ color: "#111" }}>
-                        {entity.label}
-                      </p>
-                      {(entity as any).species && (entity as any).species !== entity.label && (
-                        <p className="italic text-xs" style={{ color: "#2d6a4f" }}>
-                          {(entity as any).species}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 text-xs" style={{ color: "#555" }}>
-                        <span className="capitalize">{entity.entity_type}</span>
-                        <span>·</span>
-                        <span>{entity.observation_count} observation{entity.observation_count !== 1 ? "s" : ""}</span>
-                      </div>
-                      <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: "1px solid #e5e5e5" }}>
-                        <a
-                          href={`/plant?id=${entity.id}`}
-                          style={{ background: "#2d6a4f", color: "white", padding: "6px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, textDecoration: "none", display: "inline-block" }}
-                        >
-                          {(entity as any).species ? "Add Observation" : "Identify Species"}
-                        </a>
-                      </div>
-                      <p style={{ color: "#999", fontSize: "10px", marginTop: "4px" }}>
-                        Drag marker to correct position
-                      </p>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
+          {/* ── Plants layer (subjects) ──────────────────────── */}
+          {activeLayers.has("plants") && subjects.map((s) => {
+            if (!s.device_lat || !s.device_lng) return null;
+            const color = subjectColor(s.subject_type);
+            return (
+              <CircleMarker
+                key={`subj-${s.id}`}
+                center={[Number(s.device_lat), Number(s.device_lng)]}
+                radius={5}
+                pathOptions={{
+                  color,
+                  fillColor: color,
+                  fillOpacity: 0.7,
+                  weight: 1,
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -6]}>
+                  <span style={{ fontSize: 11 }}>
+                    {s.label || s.subject_type}
+                    {s.confidence === "provisional" && " (?)"}
+                  </span>
+                </Tooltip>
+              </CircleMarker>
+            );
+          })}
 
-            {/* Light observation markers — amber sun dots */}
-            {activeLayers.has("light") && lightObs.map((lo) => {
-              if (lo.device_lat == null || lo.device_lng == null) return null;
-              const lightColor = lo.light_level === "full_sun" ? "#fbbf24"
-                : lo.light_level === "part_sun" ? "#f59e0b"
-                : lo.light_level === "dappled" ? "#d97706"
-                : lo.light_level === "part_shade" ? "#92400e"
-                : "#78350f";
-              return (
-                <CircleMarker
-                  key={lo.id}
-                  center={[lo.device_lat, lo.device_lng]}
-                  radius={6}
-                  pathOptions={{ color: lightColor, fillColor: lightColor, fillOpacity: 0.7, weight: 1 }}
-                >
-                  <Tooltip direction="top" offset={[0, -8]}>
-                    <span style={{ fontSize: "11px" }}>
-                      {lo.light_level.replace(/_/g, " ")} · {lo.time_bucket}
-                    </span>
-                  </Tooltip>
-                </CircleMarker>
-              );
-            })}
-          </MapContainer>
-        )}
+          {/* ── Areas layer (patches) ────────────────────────── */}
+          {activeLayers.has("areas") && patches.map((p) => {
+            if (!p.device_lat || !p.device_lng) return null;
+            const color = patchColor(p.patch_type);
+            return (
+              <CircleMarker
+                key={`patch-${p.id}`}
+                center={[Number(p.device_lat), Number(p.device_lng)]}
+                radius={12}
+                pathOptions={{
+                  color,
+                  fillColor: color,
+                  fillOpacity: 0.25,
+                  weight: 1,
+                  dashArray: "4 2",
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -10]}>
+                  <span style={{ fontSize: 11 }}>{p.label || p.patch_type.replace(/_/g, " ")}</span>
+                </Tooltip>
+              </CircleMarker>
+            );
+          })}
 
-        {/* Layer toggles + legend */}
-        <div className="absolute bottom-4 left-4 z-[1000] bg-black/80 backdrop-blur-sm rounded-xl px-3 py-2.5 space-y-2">
-          {/* Layer toggles */}
-          <div className="flex items-center gap-2">
-            {([
-              { key: "plants" as MapLayer, label: "Plants", color: "#84cc16", count: entities.length },
-              { key: "light" as MapLayer, label: "Light", color: "#fbbf24", count: lightObs.filter(l => l.device_lat).length },
-            ]).map(({ key, label, color, count }) => (
+          {/* ── Light layer ──────────────────────────────────── */}
+          {activeLayers.has("light") && lightObs.map((lo) => {
+            if (!lo.device_lat || !lo.device_lng) return null;
+            const color = lightColor(lo.light_level);
+            return (
+              <CircleMarker
+                key={`light-${lo.id}`}
+                center={[Number(lo.device_lat), Number(lo.device_lng)]}
+                radius={5}
+                pathOptions={{ color, fillColor: color, fillOpacity: 0.6, weight: 1 }}
+              >
+                <Tooltip direction="top" offset={[0, -6]}>
+                  <span style={{ fontSize: 11 }}>
+                    {lo.light_level.replace(/_/g, " ")} · {lo.time_bucket}
+                  </span>
+                </Tooltip>
+              </CircleMarker>
+            );
+          })}
+
+          {/* ── Legacy entity layer ──────────────────────────── */}
+          {activeLayers.has("legacy") && entities.map((e) => {
+            if (!e.estimated_lat || !e.estimated_lng) return null;
+            return (
+              <CircleMarker
+                key={`entity-${e.id}`}
+                center={[Number(e.estimated_lat), Number(e.estimated_lng)]}
+                radius={4}
+                pathOptions={{
+                  color: "#6b7280",
+                  fillColor: "#6b7280",
+                  fillOpacity: 0.5,
+                  weight: 1,
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -6]}>
+                  <span style={{ fontSize: 11 }}>{e.label}</span>
+                </Tooltip>
+              </CircleMarker>
+            );
+          })}
+        </MapContainer>
+
+        {/* ── Layer toggle panel ──────────────────────────────── */}
+        <div className="absolute bottom-20 left-3 z-[1000] flex flex-col gap-1.5">
+          {LAYER_CONFIG.map(({ key, label, color }) => {
+            const count = layerCounts[key];
+            const active = activeLayers.has(key);
+            if (count === 0 && !active) return null; // hide empty layers
+            return (
               <button
                 key={key}
                 onClick={() => toggleLayer(key)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${
-                  activeLayers.has(key) ? "bg-white/15 text-white" : "bg-white/5 text-white/40"
-                }`}
+                className={[
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-medium transition backdrop-blur-sm",
+                  active
+                    ? "bg-black/60 text-white"
+                    : "bg-black/30 text-white/30",
+                ].join(" ")}
               >
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeLayers.has(key) ? color : "#555" }} />
-                {label} ({count})
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: active ? color : "#555" }}
+                />
+                {label}
+                {count > 0 && <span className="text-white/40">{count}</span>}
               </button>
-            ))}
-          </div>
-
-          {/* Plant type legend (when plants layer is active) */}
-          {activeLayers.has("plants") && (
-            <div className="flex items-center gap-3 pt-1 border-t border-white/10">
-              {[
-                { type: "tree", label: "Tree" },
-                { type: "shrub", label: "Shrub" },
-                { type: "herb", label: "Herb" },
-                { type: "ground_cover", label: "Ground" },
-              ].map(({ type, label }) => (
-                <div key={type} className="flex items-center gap-1">
-                  <div className="rounded-full" style={{
-                    backgroundColor: entityColor(type),
-                    width: entityRadius(type) * 2,
-                    height: entityRadius(type) * 2,
-                  }} />
-                  <span className="text-[10px] text-white/60">{label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Light level legend (when light layer is active) */}
-          {activeLayers.has("light") && (
-            <div className="flex items-center gap-3 pt-1 border-t border-white/10">
-              {[
-                { level: "Full Sun", color: "#fbbf24" },
-                { level: "Part Sun", color: "#f59e0b" },
-                { level: "Dappled", color: "#d97706" },
-                { level: "Part Shade", color: "#92400e" },
-                { level: "Full Shade", color: "#78350f" },
-              ].map(({ level, color }) => (
-                <div key={level} className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="text-[10px] text-white/60">{level}</span>
-                </div>
-              ))}
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
     </div>
