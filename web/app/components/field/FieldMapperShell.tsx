@@ -413,6 +413,7 @@ export default function FieldMapperShell({
           device_lng: p.lng,
           heading_degrees: p.heading,
           accuracy_m: p.accuracy,
+          altitude_m: p.altitude ?? null,
           movement_confidence: 0.5,
         }));
         await fieldApi.postBreadcrumbs(token!, walkSessionId, points).catch(() => {});
