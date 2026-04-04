@@ -783,9 +783,9 @@ export default function PropertyPage() {
                   {r.recommended_next && (
                     <p className="text-xs text-zinc-400 mt-1">{r.recommended_next}</p>
                   )}
-                  {r.unlock_value != null && r.unlock_value > 0 && (
+                  {r.unlock_value && (
                     <p className="text-[10px] text-lime-300/60 mt-1">
-                      Unlock value: +{Math.round(r.unlock_value * 100)}%
+                      Unlocks: {r.unlock_value}
                     </p>
                   )}
                 </div>
