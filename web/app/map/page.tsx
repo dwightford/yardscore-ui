@@ -215,7 +215,7 @@ export default function MapPage() {
       }
       if (parcelRes.ok) {
         const parcelData = await parcelRes.json();
-        const geojson = parcelData.geojson;
+        const geojson = typeof parcelData.geojson === "string" ? JSON.parse(parcelData.geojson) : parcelData.geojson;
         if (geojson?.coordinates) {
           // GeoJSON coordinates are [lng, lat] — Leaflet needs [lat, lng]
           const rings = geojson.coordinates.map((ring: number[][]) =>
@@ -342,11 +342,11 @@ export default function MapPage() {
             <Polygon
               positions={parcelRings}
               pathOptions={{
-                color: "#52b788",
-                weight: 2,
-                fillColor: "#2d6a4f",
-                fillOpacity: 0.08,
-                dashArray: "6 3",
+                color: "#ef4444",
+                weight: 3,
+                fillColor: "#ef4444",
+                fillOpacity: 0.05,
+                dashArray: "8 4",
               }}
             />
           )}
