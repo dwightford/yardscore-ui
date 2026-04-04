@@ -6,6 +6,8 @@ export interface GpsPosition {
   lat: number;
   lng: number;
   accuracy: number;
+  altitude: number | null;
+  altitudeAccuracy: number | null;
 }
 
 export function useGps() {
@@ -18,13 +20,15 @@ export function useGps() {
       setGpsError("GPS not available on this device");
       return;
     }
-    if (watchRef.current !== null) return; // already watching
+    if (watchRef.current !== null) return;
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         locationRef.current = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
+          altitude: pos.coords.altitude,
+          altitudeAccuracy: pos.coords.altitudeAccuracy,
         };
         setGpsError(null);
       },
@@ -40,7 +44,6 @@ export function useGps() {
     }
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => stopGps, [stopGps]);
 
   return { locationRef, gpsError, startGps, stopGps };

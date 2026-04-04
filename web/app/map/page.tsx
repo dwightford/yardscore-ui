@@ -149,6 +149,7 @@ export default function MapPage() {
   const [trails, setTrails] = useState<Array<[number, number][]>>([]);
   const [lightObs, setLightObs] = useState<LightObs[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [parcelRings, setParcelRings] = useState<[number, number][][]>([]);
 
   // Layer toggles
   const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(
@@ -199,6 +200,31 @@ export default function MapPage() {
     if (patchesRes?.ok) { const d = await patchesRes.json(); setPatches(Array.isArray(d) ? d : []); } else setPatches([]);
     if (lightRes?.ok) { const d = await lightRes.json(); setLightObs(Array.isArray(d) ? d : []); } else setLightObs([]);
     if (entitiesRes?.ok) { const d = await entitiesRes.json(); setEntities(Array.isArray(d) ? d : []); } else setEntities([]);
+
+    // Fetch parcel boundary — try stored first, then fetch from GIS
+    setParcelRings([]);
+    try {
+      let parcelRes = await apiFetch(t, `${API}/land_units/${id}/parcel`);
+      if (!parcelRes.ok) {
+        // No stored parcel — try fetching from GIS
+        parcelRes = await apiFetch(t, `${API}/land_units/${id}/parcel/fetch`, { method: "POST" });
+        if (parcelRes.ok) {
+          // Re-fetch the stored parcel to get the geometry
+          parcelRes = await apiFetch(t, `${API}/land_units/${id}/parcel`);
+        }
+      }
+      if (parcelRes.ok) {
+        const parcelData = await parcelRes.json();
+        const geojson = parcelData.geojson;
+        if (geojson?.coordinates) {
+          // GeoJSON coordinates are [lng, lat] — Leaflet needs [lat, lng]
+          const rings = geojson.coordinates.map((ring: number[][]) =>
+            ring.map(([lng, lat]: number[]) => [lat, lng] as [number, number]),
+          );
+          setParcelRings(rings);
+        }
+      }
+    } catch {} // non-critical
 
     // Load walk sessions + fetch breadcrumbs for each completed walk
     if (walksRes?.ok) {
@@ -310,6 +336,20 @@ export default function MapPage() {
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             maxZoom={20}
           />
+
+          {/* ── Property boundary ───────────────────────────── */}
+          {parcelRings.length > 0 && (
+            <Polygon
+              positions={parcelRings}
+              pathOptions={{
+                color: "#52b788",
+                weight: 2,
+                fillColor: "#2d6a4f",
+                fillOpacity: 0.08,
+                dashArray: "6 3",
+              }}
+            />
+          )}
 
           {/* ── Trail layer ──────────────────────────────────── */}
           {activeLayers.has("trails") && trails.map((trail, i) => (

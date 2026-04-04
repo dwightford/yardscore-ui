@@ -349,6 +349,7 @@ export interface BreadcrumbPoint {
   device_lng: number | null;
   heading_degrees: number | null;
   accuracy_m: number | null;
+  altitude_m: number | null;
   movement_confidence: number;
 }
 
