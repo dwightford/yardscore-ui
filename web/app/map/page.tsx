@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
-import NavBar from "../components/NavBar";
 
 // ── Dynamic imports (Leaflet does not support SSR) ────────────────────────────
 
@@ -278,7 +277,7 @@ export default function MapPage() {
           <div className="flex items-center gap-6 text-xs text-zinc-400">
             <a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a>
             <a href="/map" className="text-lime-300 font-medium">Map</a>
-            <a href="/scan" className="hover:text-white transition-colors">Scan →</a>
+            <a href="/walk" className="hover:text-white transition-colors">Observe →</a>
           </div>
         </div>
       </nav>
@@ -319,15 +318,15 @@ export default function MapPage() {
         ) : places.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-4">
             <div className="text-4xl">&#127807;</div>
-            <p className="font-semibold text-gray-700">Scan your yard first</p>
+            <p className="font-semibold text-gray-700">Observe your yard first</p>
             <p className="text-sm text-gray-400 text-center max-w-xs">
               Create a place and upload photos before viewing the map.
             </p>
             <a
-              href="/scan"
+              href="/walk"
               className="bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-semibold px-5 py-2.5 rounded-lg transition-colors text-sm"
             >
-              Go to Scan
+              Start observing
             </a>
           </div>
         ) : (

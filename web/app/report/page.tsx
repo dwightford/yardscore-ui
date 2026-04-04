@@ -123,7 +123,7 @@ function ReportContent() {
     return (
       <div className="min-h-screen bg-[#07110c] flex flex-col items-center justify-center gap-4">
         <p className="text-zinc-400">No census data available yet.</p>
-        <a href="/scan" className="text-lime-300 text-sm">Start a scan →</a>
+        <a href="/walk" className="text-lime-300 text-sm">Start observing →</a>
       </div>
     );
   }
@@ -334,8 +334,8 @@ function ReportContent() {
 
         {/* Actions */}
         <div className="space-y-3">
-          <a href="/scan" className="block w-full py-3.5 bg-lime-300 text-zinc-950 font-bold rounded-2xl text-sm text-center">
-            Scan Again to Update Census
+          <a href="/walk" className="block w-full py-3.5 bg-lime-300 text-zinc-950 font-bold rounded-2xl text-sm text-center">
+            Observe Again to Update Census
           </a>
           <a href="/map" className="block w-full py-3.5 bg-white/10 border border-white/10 text-white font-medium rounded-2xl text-sm text-center">
             View on Map

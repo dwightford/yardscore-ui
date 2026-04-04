@@ -509,9 +509,9 @@ function MorePanel({ onNavigate }: { onNavigate?: (path: string) => void }) {
   const ACTIONS = [
     { label: "Property",    icon: "🏠", path: "/property" },
     { label: "Dashboard",   icon: "📊", path: "/dashboard" },
-    { label: "Scan plants", icon: "📷", path: "/scan" },
-    { label: "Identify",    icon: "🔍", path: "/identify" },
     { label: "Map",         icon: "🗺", path: "/map" },
+    { label: "Profile",     icon: "👤", path: "/profile" },
+    { label: "Report",      icon: "📄", path: "/report" },
     { label: "Help",        icon: "❓", path: null },
   ];
 
