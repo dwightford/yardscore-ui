@@ -205,25 +205,25 @@ export default function MapPage() {
       const w: WalkSession[] = await walksRes.json();
       setWalks(Array.isArray(w) ? w : []);
 
-      // Fetch breadcrumbs for the 5 most recent walks with crumbs
+      // Fetch breadcrumbs for the most recent walks that have crumbs
       const recentWalks = (Array.isArray(w) ? w : [])
         .filter((ws) => ws.status === "completed" && (ws.breadcrumb_count ?? 0) > 0)
-        .slice(0, 5);
+        .slice(0, 8);
 
-      const trailPromises = recentWalks.map(async (ws) => {
-        try {
-          const r = await apiFetch(t, `${API}/field/walk-sessions/${ws.id}`);
-          if (!r.ok) return null;
-          const detail = await r.json();
-          // The session detail endpoint doesn't return breadcrumb coords directly.
-          // We'll use the breadcrumbs that are stored — TODO: add breadcrumb list endpoint
-          return null;
-        } catch { return null; }
-      });
-      await Promise.all(trailPromises);
-      // For now, trails come from breadcrumbs table — need an endpoint.
-      // Leave trails empty until we add GET /walk-sessions/:id/breadcrumbs
-      setTrails([]);
+      const trailResults = await Promise.all(
+        recentWalks.map(async (ws): Promise<[number, number][] | null> => {
+          try {
+            const r = await apiFetch(t, `${API}/field/walk-sessions/${ws.id}/breadcrumbs`);
+            if (!r.ok) return null;
+            const crumbs: Array<{ device_lat: number; device_lng: number }> = await r.json();
+            if (!Array.isArray(crumbs) || crumbs.length < 2) return null;
+            return crumbs
+              .filter((c) => c.device_lat && c.device_lng)
+              .map((c) => [Number(c.device_lat), Number(c.device_lng)] as [number, number]);
+          } catch { return null; }
+        }),
+      );
+      setTrails(trailResults.filter((t): t is [number, number][] => t !== null && t.length >= 2));
     } else {
       setWalks([]);
       setTrails([]);
