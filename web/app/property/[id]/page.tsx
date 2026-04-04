@@ -212,7 +212,7 @@ function LayerCard({
     setEntitiesLoading(true);
     try {
       const res = await apiFetch(token, `${API}/land_units/${landUnitId}/structure/${layer.layer}`);
-      if (res.ok) setEntities(await res.json());
+      if (res.ok) { const d = await res.json(); setEntities(Array.isArray(d) ? d : []); }
     } catch {}
     setEntitiesLoading(false);
   }
@@ -384,7 +384,8 @@ export default function PropertyPage() {
     try {
       const res = await apiFetch(token, `${API}/land_units/${id}/structure`);
       if (res.ok) {
-        const data: LayerSummary[] = await res.json();
+        const raw = await res.json();
+        const data: LayerSummary[] = Array.isArray(raw) ? raw : [];
         // Sort by canonical layer order
         const ordered = LAYER_ORDER
           .map((l) => data.find((d) => d.layer === l))
@@ -408,7 +409,7 @@ export default function PropertyPage() {
     setSignalsLoading(true);
     try {
       const res = await apiFetch(token, `${API}/land_units/${id}/signals`);
-      if (res.ok) setSignals(await res.json());
+      if (res.ok) { const d = await res.json(); setSignals(Array.isArray(d) ? d : []); }
     } catch {}
     setSignalsLoading(false);
   }, [token, id]);
@@ -421,7 +422,7 @@ export default function PropertyPage() {
         apiFetch(token, `${API}/land_units/${id}/readiness`),
         apiFetch(token, `${API}/land_units/${id}/readiness/next`),
       ]);
-      if (rRes.ok) setReadiness(await rRes.json());
+      if (rRes.ok) { const d = await rRes.json(); setReadiness(Array.isArray(d) ? d : []); }
       if (nRes.ok) setNextObs(await nRes.json());
     } catch {}
     setReadinessLoading(false);
@@ -432,7 +433,7 @@ export default function PropertyPage() {
     setProfilesLoading(true);
     try {
       const res = await apiFetch(token, `${API}/land_units/${id}/outcome-profiles`);
-      if (res.ok) setProfiles(await res.json());
+      if (res.ok) { const d = await res.json(); setProfiles(Array.isArray(d) ? d : []); }
     } catch {}
     setProfilesLoading(false);
   }, [token, id]);
@@ -442,7 +443,7 @@ export default function PropertyPage() {
     setWalksLoading(true);
     try {
       const res = await apiFetch(token, `${API}/land_units/${id}/walk-sessions`);
-      if (res.ok) setWalks(await res.json());
+      if (res.ok) { const d = await res.json(); setWalks(Array.isArray(d) ? d : []); }
     } catch {}
     setWalksLoading(false);
   }, [token, id]);
