@@ -32,6 +32,7 @@ import WalkReview, { type WalkReviewData, type MapPin, type MemoryStage } from "
 import { useGps } from "@/hooks/useGps";
 import { useWalkTrail } from "@/hooks/useWalkTrail";
 import * as fieldApi from "@/lib/field-api";
+import { apiFetch } from "@/lib/api";
 import { enqueue, getQueue, dequeue, pendingCount, expireStale, isNetworkError, canRetryNow, recordFlushFailure, resetBackoff, type QueuedItemType } from "@/lib/offline-queue";
 
 // ── Seed state type ───────────────────────────────────────────────────────────
@@ -489,10 +490,23 @@ export default function FieldMapperShell({
     setWalkActive(false);
     setWalkSessionId(null);
     setLightSavedThisSession(false);
+    setNotes([]);
     stopGps();
     stopRecording();
     setPanelOpen(false);
-  }, [isLive, token, landUnitId, walkSessionId, walkStartedAt, anchorCount, subjectCount, areaCount, lightSavedThisSession, trail, stopGps, stopRecording]);
+
+    // Fire-and-forget: compute score + signals + readiness after walk ends
+    if (isLive) {
+      Promise.all([
+        apiFetch(token!, `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/yardscore/${landUnitId}`).catch(() => {}),
+        apiFetch(token!, `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/land_units/${landUnitId}/signals/compute`, { method: "POST" }).catch(() => {}),
+        apiFetch(token!, `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/land_units/${landUnitId}/readiness/compute`, { method: "POST" }).catch(() => {}),
+      ]).then(() => {
+        // Refresh readiness for the next walk's prompts
+        fieldApi.fetchNextObservation(token!, landUnitId!).then(setNextObs).catch(() => {});
+      });
+    }
+  }, [isLive, token, landUnitId, walkSessionId, walkStartedAt, anchorCount, subjectCount, areaCount, lightSavedThisSession, trail, stopGps, stopRecording, notes.length]);
 
   const handleInactiveEnd = useCallback(() => {
     setShowInactivePrompt(false);
