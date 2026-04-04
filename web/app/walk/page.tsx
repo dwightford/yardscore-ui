@@ -28,6 +28,16 @@ interface LandUnit {
 export default function WalkPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // Desktop: redirect to dashboard — mobile observes, web interprets
+  const [deviceChecked, setDeviceChecked] = useState(false);
+  const [isMobile, setIsMobile] = useState(true);
+  useEffect(() => {
+    const mobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    setIsMobile(mobile);
+    setDeviceChecked(true);
+    if (!mobile) router.replace("/dashboard");
+  }, [router]);
   const token: string | undefined = (session as any)?.apiToken;
 
   const [landUnits, setLandUnits] = useState<LandUnit[]>([]);
