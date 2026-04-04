@@ -56,20 +56,20 @@ interface LayerEntity {
 
 interface Signal {
   id: string;
-  name: string;
+  signal_name: string;
   value: number;
   confidence: number;
-  tier: number;
+  signal_tier: number;
   evidence_summary: string | null;
 }
 
 interface ReadinessInsight {
   id: string;
-  name: string;
+  insight_name: string;
   state: "ready" | "close" | "locked" | "stale";
   missing_evidence: string | null;
-  recommended_action: string | null;
-  unlock_value: number | null;
+  recommended_next: string | null;
+  unlock_value: string | null;
 }
 
 interface NextObservation {
@@ -501,7 +501,7 @@ export default function PropertyPage() {
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const signalsByTier = signals.reduce<Record<number, Signal[]>>((acc, s) => {
-    (acc[s.tier] ??= []).push(s);
+    (acc[s.signal_tier] ??= []).push(s);
     return acc;
   }, {});
 
@@ -697,7 +697,7 @@ export default function PropertyPage() {
                       <div key={sig.id} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm text-zinc-200">{humanize(sig.name)}</span>
+                            <span className="text-sm text-zinc-200">{humanize(sig.signal_name)}</span>
                             {confidenceDot(sig.confidence)}
                           </div>
                           <span className="text-xs text-zinc-500 tabular-nums">
@@ -774,14 +774,14 @@ export default function PropertyPage() {
               {readiness.map((r) => (
                 <div key={r.id} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-zinc-200">{humanize(r.name)}</span>
+                    <span className="text-sm text-zinc-200">{humanize(r.insight_name)}</span>
                     {stateBadge(r.state)}
                   </div>
                   {r.missing_evidence && (
                     <p className="text-[10px] text-zinc-500 mt-1">Missing: {r.missing_evidence}</p>
                   )}
-                  {r.recommended_action && (
-                    <p className="text-xs text-zinc-400 mt-1">{r.recommended_action}</p>
+                  {r.recommended_next && (
+                    <p className="text-xs text-zinc-400 mt-1">{r.recommended_next}</p>
                   )}
                   {r.unlock_value != null && r.unlock_value > 0 && (
                     <p className="text-[10px] text-lime-300/60 mt-1">
