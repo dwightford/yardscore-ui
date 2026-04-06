@@ -1,226 +1,480 @@
 "use client";
 
 /**
- * Landing page — v2.
+ * Landing page — Garden Voice edition.
  *
- * Leads with the Structure Browser value prop, not the scanner demo.
- * Shows signal examples, readiness concept, outcome profiles.
- * Early access email capture.
+ * Hero: address input → instant property intelligence.
+ * How it works: address → walk → garden speaks.
+ * Example conversation with the garden.
+ * Score badge + earnings preview.
+ * B2B partner section.
+ * No pricing. Everything free.
  */
 
-import { useState, useEffect, FormEvent } from "react";
-import { Sprout, Layers, Sun, Target, Lightbulb, MessageCircle } from "lucide-react";
+import { useState, FormEvent, useCallback } from "react";
+import {
+  Sprout,
+  TreePine,
+  MapPin,
+  MessageCircle,
+  Sparkles,
+  Building2,
+  Shield,
+  Code2,
+  ArrowRight,
+  Search,
+  Footprints,
+  BrainCircuit,
+} from "lucide-react";
 
-const FEATURES = [
+/* ── Types ──────────────────────────────────────────────────── */
+
+interface PropertyIntelligence {
+  address: string;
+  lot_acres: number;
+  canopy_percent: number;
+  estimated_trees: number;
+  climate_zone: string;
+  soil_type: string;
+  sun_orientation: string;
+  narrative: string;
+}
+
+/* ── Mock data for demo (until /intelligence/address endpoint) */
+
+const DEMO_RESULT: PropertyIntelligence = {
+  address: "108 Buena Vista Way, Carrboro, NC 27510",
+  lot_acres: 0.47,
+  canopy_percent: 38,
+  estimated_trees: 15,
+  climate_zone: "7b",
+  soil_type: "Clay loam",
+  sun_orientation: "South-facing front",
+  narrative:
+    "I can see your trees from satellite but I don't know what they are yet. Walk your yard for 10 minutes and I'll identify your plants, map your garden's structure, and start answering your questions.",
+};
+
+/* ── Conversation example ───────────────────────────────────── */
+
+const CONVERSATION = [
   {
-    icon: Layers,
-    title: "Ecosystem Structure Browser",
-    desc: "See your yard organized by ecological layer — canopy, understory, shrub, ground cover. Every plant counted, classified, and tracked.",
+    role: "user" as const,
+    text: "What's missing in my garden?",
   },
   {
-    icon: Sun,
-    title: "Light Observation",
-    desc: "Record light conditions across your yard at different times and seasons. Planting recommendations grounded in measured reality.",
+    role: "garden" as const,
+    text: 'You have good species diversity but no groundcover layer. Your east bed has strong understory — beautyberry, ninebark, foamflower — but the west side is mostly bare. Three native shrubs on the west side would push your score from 54 to mid-60s.',
   },
   {
-    icon: Target,
-    title: "Derived Signals",
-    desc: "Ecological health, invasive pressure, structural diversity, seasonal color — computed from your real observations.",
+    role: "user" as const,
+    text: "I'm at the nursery. What do I need?",
   },
   {
-    icon: Lightbulb,
-    title: "Insight Readiness",
-    desc: "The system tells you what it knows, what it doesn't know yet, and what observation would unlock the next insight.",
-  },
-  {
-    icon: MessageCircle,
-    title: "Interpretive Voice",
-    desc: "A thoughtful guide, not a data dump. YardScore explains why signals matter and what to do about them.",
+    role: "garden" as const,
+    text: "Three things would have the biggest impact:\n1. Virginia sweetspire for the west fence — handles afternoon sun\n2. Christmas fern as groundcover under it — evergreen, no maintenance\n3. One more understory tree — dogwood or fringe tree between the oaks",
   },
 ];
 
-const OUTCOMES = [
-  { name: "Ecological Recovery", desc: "Maximize native species, remove invasives, rebuild habitat layers." },
-  { name: "Visual Design", desc: "Rhythm, massing, focal moments, palette cohesion." },
-  { name: "Four-Season Interest", desc: "Bloom, foliage, berry, and bark across every month." },
-  { name: "Pollinator Support", desc: "Host plants, bloom sequence, nesting habitat." },
+/* ── B2B partners ───────────────────────────────────────────── */
+
+const PARTNERS = [
+  {
+    icon: TreePine,
+    title: "Nurseries",
+    tagline: "Know what your customer needs before they ask",
+    desc: "Personalized recommendations at point of sale. Customer walks in, you know their yard needs native understory shrubs for part shade.",
+  },
+  {
+    icon: Building2,
+    title: "Real Estate",
+    tagline: "The score every listing is missing",
+    desc: "YardScore on Zillow, Redfin, MLS. Buyers search by ecological health. Sellers invest in improving their score.",
+  },
+  {
+    icon: Shield,
+    title: "Landscapers",
+    tagline: "Arrive already knowing the yard",
+    desc: "Species, structure, light, terrain — before the site visit. Your quotes are more accurate, your work plans are better.",
+  },
+  {
+    icon: Code2,
+    title: "Developers",
+    tagline: "Build on the garden knowledge layer",
+    desc: "MCP resource server + REST API. Your AI assistant asks the garden a question. The garden answers from real observation data.",
+  },
 ];
+
+/* ── Component ──────────────────────────────────────────────── */
 
 export default function LandingPage() {
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "submitting" | "success" | "error">("idle");
-  const [stats, setStats] = useState<{ properties: number; species: number; scans: number; plants: number } | null>(null);
+  const [address, setAddress] = useState("");
+  const [result, setResult] = useState<PropertyIntelligence | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/public/stats")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setStats(d); })
-      .catch(() => {});
-  }, []);
+  const handleLookup = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      if (!address.trim()) return;
+      setLoading(true);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setState("submitting");
-    try {
-      const res = await fetch("/api/early-access", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), phone: "", propertyType: "" }),
-      });
-      setState(res.ok ? "success" : "error");
-    } catch { setState("error"); }
-  }
+      // TODO: replace with POST /intelligence/address when backend ready
+      // For now, show demo result after a brief delay to simulate lookup
+      await new Promise((r) => setTimeout(r, 1200));
+      setResult({ ...DEMO_RESULT, address: address.trim() });
+      setLoading(false);
+    },
+    [address],
+  );
 
   return (
-    <div className="min-h-screen bg-[#07110c] text-white">
-      {/* Nav */}
+    <div className="min-h-screen bg-forest-950 text-white">
+      {/* ── Nav ─────────────────────────────────────────── */}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-            <Sprout className="h-5 w-5 text-lime-300" />
+            <Sprout className="h-5 w-5 text-forest-300" />
           </div>
-          <span className="text-lg font-semibold tracking-tight">YardScore</span>
+          <span className="text-lg font-semibold tracking-tight">
+            YardScore
+          </span>
         </div>
         <div className="flex items-center gap-4">
-          <a href="/login" className="text-sm text-zinc-400 hover:text-white transition-colors">Sign In</a>
-          <a href="/login" className="hidden sm:inline-flex rounded-full bg-lime-300 px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200">
+          <a
+            href="/login"
+            className="text-sm text-zinc-400 transition-colors hover:text-white"
+          >
+            Sign In
+          </a>
+          <a
+            href="/login"
+            className="btn-primary hidden !px-5 !py-2.5 !text-sm sm:inline-flex"
+          >
             Get Started
           </a>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="mx-auto max-w-5xl px-6 pt-12 pb-16 lg:pt-20 lg:pb-24">
+      {/* ── Hero ────────────────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pb-16 pt-12 lg:pb-24 lg:pt-20">
         <div className="max-w-2xl">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl leading-tight">
-            Understand your yard.<br />
-            <span className="text-lime-300">Know what to do next.</span>
+          <h1 className="font-display text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+            Your garden has
+            <br />
+            <span className="text-forest-300">a voice.</span>
           </h1>
-          <p className="mt-6 text-lg text-zinc-300 leading-relaxed max-w-xl">
-            Walk your property. Point your phone at plants. YardScore builds a persistent ecological model — species census, structural layers, light conditions, derived signals — and tells you exactly what to improve.
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-300">
+            Walk your yard. It learns. It speaks. Nurseries, realtors, and AI
+            assistants listen. You earn.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href="/login" className="inline-flex items-center justify-center rounded-full bg-lime-300 px-8 py-4 text-sm font-bold text-zinc-950 transition hover:bg-lime-200">
-              Start Scanning — Free
-            </a>
-          </div>
         </div>
 
-        {/* Stats */}
-        {stats && (
-          <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { value: stats.properties, label: "properties scanned" },
-              { value: stats.species, label: "species identified" },
-              { value: stats.plants, label: "plants observed" },
-              { value: stats.scans, label: "scan sessions" },
-            ].map((s) => (
-              <div key={s.label} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="text-2xl font-bold text-lime-300">{s.value}</p>
-                <p className="text-xs text-zinc-400 mt-1">{s.label}</p>
+        {/* Address input */}
+        <form onSubmit={handleLookup} className="mt-10 max-w-lg">
+          <label className="section-label mb-3 block">
+            What&apos;s your address?
+          </label>
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="108 Buena Vista Way, Carrboro NC"
+                className="address-input !pl-12"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary !rounded-2xl !px-6 !py-0 disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="animate-pulse-gentle">Looking...</span>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Wake Up My Yard</span>
+                  <ArrowRight className="h-5 w-5 sm:hidden" />
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+
+        {/* ── Results reveal ────────────────────────────── */}
+        {result && (
+          <div className="mt-8 animate-slide-up">
+            <div className="card !p-0 overflow-hidden">
+              {/* Map placeholder — satellite with boundary overlay */}
+              <div className="relative h-48 bg-forest-900 sm:h-64">
+                <div className="absolute inset-0 flex items-center justify-center text-zinc-600">
+                  <MapPin className="mr-2 h-5 w-5" />
+                  <span className="text-sm">
+                    Satellite view loading for {result.address}
+                  </span>
+                </div>
+                {/* TODO: Replace with actual satellite map + boundary + buildings */}
               </div>
-            ))}
+
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-white">
+                  {result.address}
+                </h3>
+
+                {/* Stats grid */}
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      value: `${result.lot_acres} acres`,
+                      label: "Lot size",
+                    },
+                    {
+                      value: `${result.canopy_percent}%`,
+                      label: "Canopy coverage",
+                    },
+                    {
+                      value: `~${result.estimated_trees}`,
+                      label: "Trees detected",
+                    },
+                    {
+                      value: `Zone ${result.climate_zone}`,
+                      label: "Climate zone",
+                    },
+                    { value: result.soil_type, label: "Soil type" },
+                    {
+                      value: result.sun_orientation,
+                      label: "Sun orientation",
+                    },
+                  ].map((s) => (
+                    <div key={s.label} className="stat-card">
+                      <p className="stat-value !text-lg">{s.value}</p>
+                      <p className="stat-label">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Garden's first words */}
+                <div className="garden-voice mt-6">{result.narrative}</div>
+
+                {/* CTA */}
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <a href="/login" className="btn-primary">
+                    Download the App — Free
+                  </a>
+                  <p className="self-center text-xs text-zinc-500">
+                    Everything free. No Pro tier. No paywall. Your garden earns
+                    for you.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </section>
 
-      {/* How it works */}
+      {/* ── How it works ────────────────────────────────── */}
       <section className="mx-auto max-w-5xl px-6 py-16">
-        <p className="text-xs font-medium uppercase tracking-widest text-lime-300/70 mb-4">How it works</p>
+        <p className="section-label mb-8">How it works</p>
         <div className="grid gap-6 sm:grid-cols-3">
           {[
-            { step: "1", title: "Walk & Scan", desc: "Point your phone at plants. GPS + species ID builds your yard model automatically." },
-            { step: "2", title: "Record Light", desc: "Quick light readings at different times and seasons. 10 seconds each." },
-            { step: "3", title: "Get Insights", desc: "Signals, structure, readiness, recommendations — all shaped to your goals." },
-          ].map((item) => (
-            <div key={item.step} className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-              <div className="w-8 h-8 rounded-lg bg-lime-300/10 flex items-center justify-center text-lime-300 text-sm font-bold mb-3">
-                {item.step}
-              </div>
-              <h3 className="text-sm font-semibold text-white">{item.title}</h3>
-              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="mx-auto max-w-5xl px-6 py-16">
-        <h2 className="text-2xl font-bold text-white mb-8">What you get</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((item) => {
+            {
+              step: "1",
+              icon: Search,
+              title: "Enter your address",
+              desc: "Your yard already knows its shape, soil, trees, and sun — all from free public data.",
+            },
+            {
+              step: "2",
+              icon: Footprints,
+              title: "Walk your yard",
+              desc: "Camera open. Just walk. The system captures everything automatically — plants, light, elevation, heading.",
+            },
+            {
+              step: "3",
+              icon: BrainCircuit,
+              title: "Your garden speaks",
+              desc: "Ask it anything. It answers from real observation data. Nurseries and realtors listen. You earn.",
+            },
+          ].map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.title} className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                <Icon className="h-5 w-5 text-lime-300 mb-3" />
-                <h3 className="text-sm font-semibold text-white">{item.title}</h3>
-                <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{item.desc}</p>
+              <div key={item.step} className="card">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-forest-600/15 text-forest-300">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <p className="text-xs font-bold text-forest-300/60">
+                  Step {item.step}
+                </p>
+                <h3 className="mt-1 text-base font-semibold text-white">
+                  {item.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                  {item.desc}
+                </p>
               </div>
             );
           })}
         </div>
       </section>
 
-      {/* Outcome profiles */}
+      {/* ── Example conversation ─────────────────────────── */}
       <section className="mx-auto max-w-5xl px-6 py-16">
-        <h2 className="text-2xl font-bold text-white mb-2">Tell YardScore what you care about</h2>
-        <p className="text-sm text-zinc-400 mb-8">Same yard, different goals. Recommendations adapt to your priorities.</p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {OUTCOMES.map((o) => (
-            <div key={o.name} className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-              <h3 className="text-sm font-semibold text-white">{o.name}</h3>
-              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{o.desc}</p>
+        <p className="section-label mb-3">The garden speaks</p>
+        <h2 className="mb-8 font-display text-3xl font-bold text-white">
+          Ask your garden anything
+        </h2>
+
+        <div className="mx-auto max-w-2xl space-y-4">
+          {CONVERSATION.map((msg, i) => (
+            <div
+              key={i}
+              className={
+                msg.role === "user"
+                  ? "flex justify-end"
+                  : "flex justify-start"
+              }
+            >
+              {msg.role === "user" ? (
+                <div className="max-w-[80%] rounded-2xl rounded-br-md bg-forest-600/20 px-4 py-3 text-sm text-zinc-200">
+                  {msg.text}
+                </div>
+              ) : (
+                <div className="garden-voice max-w-[90%] !rounded-2xl !rounded-bl-md whitespace-pre-line">
+                  {msg.text}
+                </div>
+              )}
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTA */}
+      {/* ── Score badge ──────────────────────────────────── */}
       <section className="mx-auto max-w-5xl px-6 py-16">
-        <div className="rounded-2xl border border-lime-300/15 bg-lime-300/5 p-8 sm:p-12 text-center">
-          <h2 className="text-3xl font-bold text-white">
-            Your yard is an ecosystem.<br />Understand it.
-          </h2>
-          <p className="mt-4 text-zinc-300 max-w-lg mx-auto">
-            Free to scan. Free to score. Works on any phone. Takes 10-20 minutes to build your first census.
+        <div className="card flex flex-col items-center !p-10 text-center sm:!p-14">
+          <div className="score-badge !px-10 !py-5 !text-4xl">78</div>
+          <p className="mt-3 text-sm text-zinc-400">YardScore</p>
+          <h3 className="mt-4 font-display text-2xl font-bold text-white">
+            Your score on every listing
+          </h3>
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-400">
+            Like WalkScore for walkability — but for ecological health. Your
+            YardScore appears on real estate listings, neighborhood pages, and
+            anywhere your garden&apos;s reputation matters.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/login" className="inline-flex items-center justify-center rounded-full bg-lime-300 px-10 py-4 text-sm font-bold text-zinc-950 transition hover:bg-lime-200">
-              Start Scanning
-            </a>
-          </div>
+        </div>
+      </section>
 
-          {/* Email capture */}
-          <div className="mt-8 max-w-md mx-auto">
-            <p className="text-xs text-zinc-500 mb-3">Or get notified about updates:</p>
-            {state === "success" ? (
-              <p className="text-sm font-medium text-lime-300">You&apos;re on the list.</p>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex gap-2">
-                <input
-                  type="email" required value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="flex-1 h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-lime-300/50"
-                />
-                <button type="submit" disabled={state === "submitting"}
-                  className="h-10 px-5 rounded-lg bg-white/10 text-sm font-medium text-white hover:bg-white/20 disabled:opacity-50">
-                  {state === "submitting" ? "..." : "Notify"}
-                </button>
-              </form>
-            )}
+      {/* ── Earnings preview ─────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <p className="section-label mb-3">Your garden earns</p>
+        <h2 className="mb-8 font-display text-3xl font-bold text-white">
+          You walk. Your garden learns. You earn.
+        </h2>
+
+        <div className="card mx-auto max-w-md !bg-forest-900/50 !p-6 font-mono text-sm">
+          <p className="mb-3 text-xs font-sans font-medium text-zinc-400">
+            Garden Earnings — April 2027
+          </p>
+          <div className="space-y-2">
+            {[
+              { source: "Nursery queries", count: 12, amount: "$1.44" },
+              {
+                source: "Real estate listing views",
+                count: 89,
+                amount: "$1.78",
+              },
+              { source: "Landscaper pre-visit", count: 1, amount: "$2.00" },
+              { source: "AI assistant queries", count: 23, amount: "$0.46" },
+            ].map((row) => (
+              <div
+                key={row.source}
+                className="flex items-center justify-between"
+              >
+                <span className="text-zinc-400">{row.source}</span>
+                <span className="earnings-value !text-sm">{row.amount}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3">
+            <span className="font-sans text-xs text-zinc-400">
+              Monthly total
+            </span>
+            <span className="earnings-value">$5.68</span>
+          </div>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-zinc-500">
+          Every commercial query against your garden data generates a
+          micro-payment. Walk more → richer data → more queries → your garden
+          earns more.
+        </p>
+      </section>
+
+      {/* ── For businesses ───────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <p className="section-label mb-3">For businesses</p>
+        <h2 className="mb-8 font-display text-3xl font-bold text-white">
+          Your customers&apos; gardens can talk to your systems
+        </h2>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {PARTNERS.map((p) => {
+            const Icon = p.icon;
+            return (
+              <div key={p.title} className="card">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-forest-600/15 text-forest-300">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  {p.title}
+                </h3>
+                <p className="mt-1 text-sm font-medium text-forest-300/80">
+                  {p.tagline}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                  {p.desc}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Final CTA ────────────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <div className="card !border-forest-600/15 !bg-forest-600/5 !p-8 text-center sm:!p-14">
+          <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
+            Your garden has a voice.
+            <br />
+            <span className="text-forest-300">Let it speak.</span>
+          </h2>
+          <p className="mx-auto mt-4 max-w-lg text-zinc-300">
+            Free to use. Free to walk. Free to ask. Your garden earns for you
+            from every commercial query. The person who creates the value never
+            pays for it.
+          </p>
+          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <a href="/login" className="btn-primary">
+              Wake Up My Yard
+            </a>
+            <a href="#how" className="btn-secondary">
+              Learn more
+            </a>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ── Footer ───────────────────────────────────────── */}
       <footer className="border-t border-white/[0.06] px-6 py-8">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 text-xs text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
-          <span><span className="text-zinc-400">YardScore</span> by DrewHenry</span>
+          <span>
+            <span className="text-zinc-400">YardScore</span> by DrewHenry
+          </span>
           <div className="flex gap-6">
+            <a href="/login" className="hover:text-zinc-400">
+              Sign In
+            </a>
             <span>Species ID by Pl@ntNet</span>
-            <span>Wildlife data from Doug Tallamy</span>
           </div>
         </div>
       </footer>
