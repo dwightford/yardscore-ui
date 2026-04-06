@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /walk — Field Mapper entry point
+ * /walk — Field Mapper entry point (Garden Voice edition)
  *
  * Authenticated users: resolves land units, then renders the guided
  * walk flow (origin anchor → begin walk → shell with prompts → review).
@@ -9,12 +9,16 @@
  *
  * Unauthenticated / no land units: renders the guided walk flow in
  * demo mode with local state only.
+ *
+ * Canon: Mobile observes, web interprets.
+ * Desktop visitors redirect to /dashboard.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { Sprout } from "lucide-react";
 import GuidedWalkFlow from "../components/field/GuidedWalkFlow";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -52,7 +56,9 @@ export default function WalkPage() {
     apiFetch(token, `${API}/land_units`)
       .then((r) => r.json())
       .then((data) => {
-        const units: LandUnit[] = Array.isArray(data) ? data : data.land_units ?? [];
+        const units: LandUnit[] = Array.isArray(data)
+          ? data
+          : (data.land_units ?? []);
         setLandUnits(units);
         if (units.length === 1) setSelectedId(units[0].id);
       })
@@ -61,36 +67,44 @@ export default function WalkPage() {
   }, [token]);
 
   const selectedUnit = landUnits.find((u) => u.id === selectedId) ?? null;
-  const propertyLabel = selectedUnit?.name || selectedUnit?.address || "Your Property";
+  const propertyLabel =
+    selectedUnit?.name || selectedUnit?.address || "Your Property";
 
   const handleViewProperty = useCallback(() => {
     if (selectedId) router.push(`/property/${selectedId}`);
   }, [selectedId, router]);
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────────────────────
   if (status === "loading" || !resolved) {
     return (
-      <div className="h-[100dvh] bg-black flex items-center justify-center">
-        <p className="text-stone-600 text-sm tracking-wide">Loading...</p>
+      <div className="flex h-[100dvh] items-center justify-center bg-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-forest-300/30 border-t-forest-300" />
       </div>
     );
   }
 
-  // ── Multi-property selector (shown when > 1 property, before entering flow)
+  // ── Multi-property selector (Garden Voice styled) ─────────────────────────
   if (token && landUnits.length > 1 && !selectedId) {
     return (
-      <div className="h-[100dvh] bg-stone-950 flex flex-col items-center justify-center px-6 gap-4">
-        <h1 className="text-white text-lg font-semibold">Which property?</h1>
-        <div className="flex flex-col gap-2 w-full max-w-xs">
+      <div className="flex h-[100dvh] flex-col items-center justify-center bg-forest-950 px-6">
+        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-forest-300/20 bg-forest-300/10">
+          <Sprout className="h-6 w-6 text-forest-300" />
+        </div>
+        <h1 className="mb-6 font-display text-xl font-bold text-white">
+          Which yard?
+        </h1>
+        <div className="flex w-full max-w-xs flex-col gap-2">
           {landUnits.map((u) => (
             <button
               key={u.id}
               onClick={() => setSelectedId(u.id)}
-              className="bg-stone-900 border border-stone-700 hover:border-green-600 rounded-xl px-4 py-3 text-left transition"
+              className="card text-left transition-all hover:!border-forest-600/30"
             >
-              <p className="text-white text-sm font-medium">{u.name || u.address || u.id}</p>
+              <p className="text-sm font-medium text-white">
+                {u.name || u.address || u.id}
+              </p>
               {u.address && u.name && (
-                <p className="text-stone-500 text-xs mt-0.5">{u.address}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">{u.address}</p>
               )}
             </button>
           ))}
@@ -112,7 +126,5 @@ export default function WalkPage() {
   }
 
   // ── Demo fallback → guided walk flow without credentials ──────────────────
-  return (
-    <GuidedWalkFlow propertyLabel="108 Buena Vista Way" />
-  );
+  return <GuidedWalkFlow propertyLabel="108 Buena Vista Way" />;
 }
