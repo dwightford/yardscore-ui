@@ -6,7 +6,8 @@ import BottomTabs from "./components/BottomTabs";
 
 export const metadata: Metadata = {
   title: "YardScore",
-  description: "Take a photo. Get a YardScore. See what to improve.",
+  description:
+    "Your garden has a voice. Walk your yard. It learns. It speaks. Nurseries, realtors, and AI assistants listen. You earn.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -22,7 +23,11 @@ export const viewport: Viewport = {
   themeColor: "#2d6a4f",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <head>
@@ -30,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-screen bg-[#07110c]">
+      <body className="min-h-screen bg-forest-950">
         <Providers>
           {children}
           <BottomTabs />
