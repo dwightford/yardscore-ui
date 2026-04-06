@@ -59,22 +59,12 @@ export default function DashboardPage() {
     );
   }
 
-  // No properties
+  // No properties — redirect to address-based onboarding
   if (landUnits.length === 0) {
+    router.replace("/onboard");
     return (
-      <div className="min-h-screen bg-[#07110c] flex items-center justify-center px-6">
-        <div className="text-center max-w-sm">
-          <h1 className="text-white text-xl font-semibold mb-3">Welcome to YardScore</h1>
-          <p className="text-stone-400 text-sm leading-relaxed mb-6">
-            Add your property to start building its living memory.
-          </p>
-          <a
-            href="/walk"
-            className="inline-block bg-green-600 hover:bg-green-500 text-white font-semibold rounded-xl px-6 py-3 text-sm transition"
-          >
-            Start observing
-          </a>
-        </div>
+      <div className="min-h-screen bg-forest-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-forest-300/30 border-t-forest-300 rounded-full animate-spin" />
       </div>
     );
   }
