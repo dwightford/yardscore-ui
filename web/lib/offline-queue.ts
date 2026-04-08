@@ -11,7 +11,7 @@
 
 const QUEUE_KEY = "ys:offline-queue";
 
-export type QueuedItemType = "anchor" | "subject" | "patch" | "light" | "breadcrumbs";
+export type QueuedItemType = "anchor" | "subject" | "patch" | "light" | "breadcrumbs" | "capture";
 
 export interface QueuedItem {
   id: string;

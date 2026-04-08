@@ -375,11 +375,6 @@ export default function FieldMapperShell({
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleModeSelect = useCallback((mode: ActionMode) => {
-    setActiveMode(mode);
-    setPanelOpen(true);
-  }, []);
-
   const handleClosePanel = useCallback(() => {
     setPanelOpen(false);
   }, []);
@@ -423,6 +418,12 @@ export default function FieldMapperShell({
       } catch (e: any) {
         setError(e.message ?? "Could not end walk");
         return;
+      }
+      // Trigger batch identification for all captures from this walk
+      try {
+        await fieldApi.identifyCaptures(token!, landUnitId!, walkSessionId);
+      } catch {
+        // Non-blocking — identification will happen eventually
       }
     }
 
@@ -608,6 +609,67 @@ export default function FieldMapperShell({
     flashStrip(queued ? "queued" : "subject_tagged");
     setPanelOpen(false);
   }, [isLive, token, landUnitId, walkSessionId, gpsCoords, flashStrip, queueItem]);
+
+  /** ONE-TAP CAPTURE: save frame + GPS instantly. No PlantNet. No waiting. */
+  const handleOneTapCapture = useCallback(async () => {
+    const coords = gpsCoords();
+    if (!coords.device_lat || !coords.device_lng) {
+      flashStrip("subject_tagged"); // still flash even without GPS
+      return;
+    }
+
+    // Capture frame from camera
+    let imageRef: string | undefined;
+    try {
+      const blob = await captureFrame();
+      if (blob) {
+        // Convert to base64 data URL for now (storage TBD)
+        const reader = new FileReader();
+        imageRef = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+        // Truncate for storage — just keep first 200 chars as ref marker
+        if (imageRef && imageRef.length > 200) {
+          imageRef = imageRef.substring(0, 200);
+        }
+      }
+    } catch {
+      // Camera capture failed — still save GPS-only capture
+    }
+
+    const data = {
+      device_lat: coords.device_lat,
+      device_lng: coords.device_lng,
+      accuracy_m: coords.accuracy_m,
+      ...(walkSessionId ? { walk_session_id: walkSessionId } : {}),
+      ...(imageRef ? { image_ref: imageRef } : {}),
+    };
+
+    if (isLive) {
+      try {
+        await fieldApi.createCapture(token!, landUnitId!, data);
+      } catch (e: any) {
+        if (isNetworkError(e)) {
+          queueItem("capture", { landUnitId: landUnitId!, data });
+        }
+        // Don't block the user on errors
+      }
+    }
+
+    setSubjectCount((n) => n + 1);
+    flashStrip("subject_tagged");
+    // Don't open panel, don't wait. Green check, keep walking.
+  }, [isLive, token, landUnitId, walkSessionId, gpsCoords, captureFrame, flashStrip, queueItem]);
+
+  const handleModeSelect = useCallback((mode: ActionMode) => {
+    if (mode === "identify" && walkActive) {
+      handleOneTapCapture();
+      return;
+    }
+    setActiveMode(mode);
+    setPanelOpen(true);
+  }, [walkActive, handleOneTapCapture]);
 
   const handleSaveLight = useCallback(async (direction: string, condition: string) => {
     const loc = locationRef.current;

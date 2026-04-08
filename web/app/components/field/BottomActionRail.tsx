@@ -56,8 +56,8 @@ export default function BottomActionRail({
       {/* Actions */}
       <div className="flex items-center justify-around px-1 pt-1">
         <RailButton
-          icon="🔍"
-          label="Identify"
+          icon={walkActive ? "📸" : "🔍"}
+          label={walkActive ? "Capture" : "Identify"}
           active={activeMode === "identify"}
           onClick={() => onSelect("identify")}
         />

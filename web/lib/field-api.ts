@@ -402,6 +402,65 @@ export function isGoodLightConditions(weather: WeatherConditions | null): boolea
   return weather.cloud_cover === "clear" || weather.cloud_cover === "partly_cloudy";
 }
 
+// ── One-tap captures ────────────────────────────────────────────────────────
+
+export interface Capture {
+  id: string;
+  status: string;
+  device_lat: number;
+  device_lng: number;
+  hint_type?: string | null;
+  hint_label?: string | null;
+  captured_at: string;
+}
+
+/** One-tap capture: save frame + GPS instantly. No identification wait. */
+export async function createCapture(
+  token: string,
+  landUnitId: string,
+  data: {
+    device_lat: number;
+    device_lng: number;
+    accuracy_m: number | null;
+    heading_degrees?: number | null;
+    walk_session_id?: string;
+    image_ref?: string;
+    hint_type?: string;
+    hint_label?: string;
+  },
+): Promise<Capture> {
+  const res = await apiFetch(
+    token,
+    `${API}/land_units/${landUnitId}/captures`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/** Trigger batch identification for pending captures (called when walk ends). */
+export async function identifyCaptures(
+  token: string,
+  landUnitId: string,
+  walkSessionId?: string,
+): Promise<{ queued: number; message: string }> {
+  const res = await apiFetch(
+    token,
+    `${API}/land_units/${landUnitId}/captures/identify`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walk_session_id: walkSessionId }),
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Plant identification (PlantNet proxy) ────────────────────────────────────
 
 export interface PlantIdResult {
