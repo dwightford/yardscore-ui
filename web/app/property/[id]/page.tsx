@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useDeviceShell } from "@/hooks/useDeviceShell";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -333,6 +334,15 @@ export default function PropertyPage() {
   const params = useParams();
   const id = params.id as string;
 
+  // Authenticated shell device class.
+  // Per canon (YardScore Authenticated Surface Separation, 2026-04-09):
+  //   - Phone shell shows the "Start observing" walk CTA.
+  //   - Desktop shell shows a mobile-handoff message instead.
+  // Pre-hydration (shell === null) renders the desktop default — better
+  // to flash the handoff than to flash a walk CTA on a desktop.
+  const shell = useDeviceShell();
+  const isPhoneShell = shell === "phone";
+
   // ── State ──────────────────────────────────────────────────────────────────
 
   const [landUnit, setLandUnit] = useState<LandUnit | null>(null);
@@ -630,13 +640,27 @@ export default function PropertyPage() {
               </div>
             )}
 
-            {/* Start observing CTA */}
-            <a
-              href="/walk"
-              className="block w-full text-center bg-green-600/80 hover:bg-green-600 text-white font-medium rounded-xl py-3 text-sm transition"
-            >
-              Start observing
-            </a>
+            {/* Start observing CTA — phone-only.
+                Desktop sees a mobile-handoff message instead, per canon:
+                Mobile observes. Web interprets. */}
+            {isPhoneShell ? (
+              <a
+                href="/walk"
+                className="block w-full text-center bg-green-600/80 hover:bg-green-600 text-white font-medium rounded-xl py-3 text-sm transition"
+              >
+                Start observing
+              </a>
+            ) : (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 text-center">
+                <p className="text-stone-300 text-sm font-medium">
+                  Field capture works best on mobile.
+                </p>
+                <p className="text-stone-500 text-xs mt-1">
+                  Open YardScore on your phone to walk your yard. This view is
+                  for reading what the yard is telling you.
+                </p>
+              </div>
+            )}
           </section>
         )}
 

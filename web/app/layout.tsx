@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "./providers";
 import FeedbackWidget from "./components/FeedbackWidget";
 import BottomTabs from "./components/BottomTabs";
+import DesktopTopNav from "./components/DesktopTopNav";
 
 export const metadata: Metadata = {
   title: "YardScore",
@@ -37,6 +38,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-forest-950">
         <Providers>
+          <DesktopTopNav />
           {children}
           <BottomTabs />
           <FeedbackWidget />

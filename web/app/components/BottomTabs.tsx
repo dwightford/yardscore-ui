@@ -1,62 +1,44 @@
 "use client";
 
 /**
- * BottomTabs — Garden Voice edition
+ * BottomTabs — phone-only authenticated mobile chrome
  *
- * Three-mode navigation:
- * Mobile:  Walk | Ask | Map
- * Desktop: Home | Map | Profile
+ * Canon (YardScore Authenticated Surface Separation, 2026-04-09):
+ *   - Authenticated phone:   shows the mobile capture nav (Walk | Ask | Map)
+ *   - Authenticated desktop: this component renders nothing.
+ *                            Desktop uses DesktopTopNav instead.
+ *   - Unauthenticated:       this component renders nothing on the public
+ *                            landing page (HIDDEN_ON includes "/").
  *
- * During walks, the tab bar hides. Camera is the app.
+ * During walks, the tab bar also hides. Camera is the app.
  */
 
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
 import {
   Footprints,
   MessageCircle,
   Map,
-  Home,
-  User,
 } from "lucide-react";
+import { useDeviceShell } from "@/hooks/useDeviceShell";
 
-function useIsMobile() {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    setMobile("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
-  return mobile;
-}
-
-const TABS = [
+// Phone tabs only — desktop has its own top nav and never sees this bar.
+const PHONE_TABS = [
   {
-    href: "/dashboard",
-    label: "Home",
-    mobileLabel: "Walk",
-    mobileHref: "/walk",
-    mobileOnly: false,
-    icon: Home,
-    mobileIcon: Footprints,
+    href: "/walk",
+    label: "Walk",
+    icon: Footprints,
   },
   {
     href: "/dashboard",
     label: "Ask",
-    mobileOnly: true,
     icon: MessageCircle,
-    // TODO: /ask route when chat interface is built
-    // For now, links to dashboard/property page
+    // TODO: /ask route when chat interface is built.
+    // For now, points back to property home.
   },
   {
     href: "/map",
     label: "Map",
-    mobileOnly: false,
     icon: Map,
-  },
-  {
-    href: "/profile",
-    label: "Profile",
-    mobileOnly: false,
-    icon: User,
   },
 ];
 
@@ -65,46 +47,40 @@ const HIDDEN_ON = ["/login", "/share", "/walk", "/onboard", "/garden"];
 
 export default function BottomTabs() {
   const pathname = usePathname();
-  const isMobile = useIsMobile();
+  const shell = useDeviceShell();
 
-  if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
+  // Public landing — never show authenticated chrome.
   if (pathname === "/") return null;
 
-  const visibleTabs = TABS.filter((t) => !t.mobileOnly || isMobile);
+  // Pages that explicitly opt out of the tab bar.
+  if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
+
+  // Pre-hydration (shell unknown) and desktop both render nothing.
+  // Desktop-default posture: never flash mobile chrome on a desktop browser.
+  if (shell !== "phone") return null;
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-forest-950/95 backdrop-blur-lg"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-forest-950/95 backdrop-blur-lg lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="mx-auto flex max-w-lg items-center justify-around">
-        {visibleTabs.map((tab) => {
-          const href =
-            isMobile && tab.mobileHref ? tab.mobileHref : tab.href;
-          const label =
-            isMobile && tab.mobileLabel ? tab.mobileLabel : tab.label;
-          const Icon = isMobile && tab.mobileIcon ? tab.mobileIcon : tab.icon;
-
+        {PHONE_TABS.map((tab) => {
+          const Icon = tab.icon;
           const active =
-            href === "/dashboard"
-              ? pathname === "/dashboard" ||
-                pathname.startsWith("/property")
-              : pathname === href ||
-                (href !== "/" && pathname.startsWith(href));
+            pathname === tab.href ||
+            (tab.href !== "/" && pathname.startsWith(tab.href));
 
           return (
             <a
-              key={label}
-              href={href}
+              key={tab.label}
+              href={tab.href}
               className={`flex flex-col items-center gap-0.5 px-4 py-2 transition-colors ${
                 active ? "text-forest-300" : "text-zinc-500"
               }`}
             >
-              <Icon
-                className="h-5 w-5"
-                strokeWidth={active ? 2 : 1.5}
-              />
-              <span className="text-[10px] font-medium">{label}</span>
+              <Icon className="h-5 w-5" strokeWidth={active ? 2 : 1.5} />
+              <span className="text-[10px] font-medium">{tab.label}</span>
             </a>
           );
         })}
