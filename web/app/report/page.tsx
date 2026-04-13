@@ -321,17 +321,6 @@ function ReportContent() {
           </div>
         )}
 
-        {/* Pro upgrade prompt */}
-        {!isPro && (
-          <div className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-5 mb-4 text-center">
-            <p className="text-sm text-white font-semibold mb-1">Unlock the full report</p>
-            <p className="text-xs text-zinc-400 mb-3">Score history, PDF export, neighbor comparison, and LLM-generated garden narrative.</p>
-            <a href="/upgrade" className="inline-block px-6 py-2.5 bg-lime-300 text-zinc-950 font-bold rounded-xl text-sm">
-              Upgrade to Pro — $29.99/year
-            </a>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="space-y-3">
           <a href="/walk" className="block w-full py-3.5 bg-lime-300 text-zinc-950 font-bold rounded-2xl text-sm text-center">

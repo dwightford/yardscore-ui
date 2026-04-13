@@ -16,24 +16,24 @@
 import { usePathname } from "next/navigation";
 import {
   Footprints,
-  MessageCircle,
+  Home,
   Map,
 } from "lucide-react";
 import { useDeviceShell } from "@/hooks/useDeviceShell";
 
 // Phone tabs only — desktop has its own top nav and never sees this bar.
+// `/dashboard` is a redirect-only waypoint → users always land on their
+// property home.
 const PHONE_TABS = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: Home,
+  },
   {
     href: "/walk",
     label: "Walk",
     icon: Footprints,
-  },
-  {
-    href: "/dashboard",
-    label: "Ask",
-    icon: MessageCircle,
-    // TODO: /ask route when chat interface is built.
-    // For now, points back to property home.
   },
   {
     href: "/map",

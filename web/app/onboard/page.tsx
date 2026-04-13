@@ -1,20 +1,19 @@
 "use client";
 
 /**
- * /onboard — Address-based property setup (Mobile-first)
+ * /onboard — authenticated first-property setup.
  *
- * The easiest possible start:
- * 1. Enter address → system fetches property context
- * 2. See your yard's pre-walk intelligence
- * 3. Tap "Walk Your Yard" to begin
- *
- * No paywall. No complexity. The garden wakes up from an address.
+ * Auth-gated (middleware + explicit guard). If the user already owns or
+ * has access to the resolved address, they go straight to /property/[id]
+ * — no re-ask, no claim loop. If they land here with ?address=<x> from
+ * the landing page, we prefill and skip straight to preview.
  */
 
-import { useState, FormEvent, useCallback } from "react";
+import { useState, useEffect, FormEvent, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Sprout, Search, MapPin, ArrowRight, TreePine, Droplets, Sun, Mountain } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api";
+import { Sprout, Search, MapPin, TreePine, Droplets, Sun, Mountain } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -29,28 +28,93 @@ interface YardIntelligence {
   narrative: string;
 }
 
+interface LandUnit {
+  id: string;
+  name?: string | null;
+  address?: string | null;
+}
+
 export default function OnboardPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const token = (session as any)?.apiToken as string | undefined;
 
-  const [step, setStep] = useState<"address" | "preview" | "creating">("address");
-  const [address, setAddress] = useState("");
+  const prefill = searchParams.get("address") ?? "";
+
+  const [step, setStep] = useState<"address" | "preview" | "creating">(
+    prefill ? "preview" : "address",
+  );
+  const [address, setAddress] = useState(prefill);
   const [intel, setIntel] = useState<YardIntelligence | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolvingExisting, setResolvingExisting] = useState(true);
 
-  const handleLookup = useCallback(async (e: FormEvent) => {
-    e.preventDefault();
-    if (!address.trim()) return;
+  // Hard auth gate — middleware should catch this, but belt + suspenders.
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!token) {
+      const next = `/onboard${prefill ? `?address=${encodeURIComponent(prefill)}` : ""}`;
+      router.replace(`/login?mode=signin&next=${encodeURIComponent(next)}`);
+    }
+  }, [status, token, prefill, router]);
+
+  // Short-circuit the claim loop: if the user already has a property whose
+  // address matches the one they came in with, jump straight to its home.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await apiFetch(token, `${API}/land_units`);
+        if (!res.ok) {
+          if (!cancelled) setResolvingExisting(false);
+          return;
+        }
+        const data = await res.json();
+        const units: LandUnit[] = Array.isArray(data) ? data : data.land_units ?? [];
+
+        if (prefill) {
+          const match = units.find((u) =>
+            (u.address ?? "").toLowerCase().startsWith(prefill.toLowerCase().split(",")[0]),
+          );
+          if (match) {
+            if (!cancelled) router.replace(`/property/${match.id}`);
+            return;
+          }
+        } else if (units.length > 0) {
+          // User already owns a property and landed on /onboard bare —
+          // they don't need to onboard again.
+          if (!cancelled) router.replace(`/property/${units[0].id}`);
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      if (!cancelled) setResolvingExisting(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, prefill, router]);
+
+  // Kick off the lookup automatically if we arrived with a prefilled address.
+  useEffect(() => {
+    if (step === "preview" && prefill && !intel && !loading && !resolvingExisting && token) {
+      void runLookup(prefill);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, prefill, resolvingExisting, token]);
+
+  const runLookup = useCallback(async (a: string) => {
     setLoading(true);
     setError(null);
-
     try {
-      // TODO: replace with POST /intelligence/address when backend ready
-      // For now, simulate the lookup with realistic demo data
-      await new Promise((r) => setTimeout(r, 1500));
-
+      // TODO: wire POST /intelligence/address. Demo data until then.
+      await new Promise((r) => setTimeout(r, 800));
       setIntel({
         lot_acres: 0.47,
         canopy_percent: 38,
@@ -59,35 +123,39 @@ export default function OnboardPage() {
         soil_type: "Clay loam",
         sun_orientation: "South-facing front",
         elevation_ft: 505,
-        narrative: "I can see your trees from satellite but I don't know what they are yet. Walk your yard for 10 minutes and I'll identify your plants, map your garden's structure, and start answering your questions.",
+        narrative:
+          "I can see your trees from satellite but I don't know what they are yet. Walk your yard and I'll identify your plants.",
       });
       setStep("preview");
     } catch {
-      setError("Couldn't look up that address. Please try again.");
+      setError("Couldn't look up that address. Try again.");
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, []);
 
-  const handleCreateProperty = useCallback(async () => {
+  const handleLookup = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      const a = address.trim();
+      if (!a) return;
+      await runLookup(a);
+    },
+    [address, runLookup],
+  );
+
+  const handleClaim = useCallback(async () => {
     if (!token) return;
     setStep("creating");
-
     try {
-      // TODO: Use POST /places/resolve with the geocoded address
-      // For now, create via existing endpoint
       const res = await fetch(`${API}/land_units`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           name: address.split(",")[0]?.trim() || "My Yard",
           address: address.trim(),
         }),
       });
-
       if (res.ok) {
         const data = await res.json();
         const id = data.id || data.land_unit_id;
@@ -96,17 +164,24 @@ export default function OnboardPage() {
           return;
         }
       }
-      setError("Couldn't create property. Please try again.");
+      setError("Couldn't claim this yard. Try again.");
       setStep("preview");
     } catch {
-      setError("Couldn't create property. Please try again.");
+      setError("Couldn't claim this yard. Try again.");
       setStep("preview");
     }
   }, [token, address, router]);
 
+  if (status === "loading" || !token || resolvingExisting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-forest-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-forest-300/30 border-t-forest-300" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-forest-950 px-5 pb-20">
-      {/* ── Header ──────────────────────────────────── */}
       <div className="flex items-center gap-2.5 pt-6 pb-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-forest-300/20 bg-forest-300/10">
           <Sprout className="h-4 w-4 text-forest-300" />
@@ -114,7 +189,6 @@ export default function OnboardPage() {
         <span className="text-base font-semibold tracking-tight text-white">YardScore</span>
       </div>
 
-      {/* ── Step 1: Address entry ───────────────────── */}
       {step === "address" && (
         <div className="flex flex-1 flex-col justify-center">
           <h1 className="font-display text-3xl font-bold leading-tight text-white">
@@ -123,7 +197,7 @@ export default function OnboardPage() {
             <span className="text-forest-300">address?</span>
           </h1>
           <p className="mt-3 text-sm text-zinc-400">
-            We&apos;ll find your yard and show you what we already know — before you take a single step.
+            We&apos;ll find your yard and show you what we already know.
           </p>
 
           <form onSubmit={handleLookup} className="mt-8">
@@ -146,37 +220,27 @@ export default function OnboardPage() {
               {loading ? (
                 <span className="animate-pulse-gentle">Finding your yard...</span>
               ) : (
-                "Find My Yard"
+                "Find my yard"
               )}
             </button>
           </form>
 
-          {error && (
-            <p className="mt-3 text-sm text-red-400">{error}</p>
-          )}
-
-          <p className="mt-6 text-center text-xs text-zinc-600">
-            Everything free. No Pro tier. No paywall.
-          </p>
+          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         </div>
       )}
 
-      {/* ── Step 2: Pre-walk yard preview ────────────── */}
       {step === "preview" && intel && (
         <div className="animate-slide-up flex-1">
           <p className="section-label mb-2 mt-4">Your yard</p>
           <h2 className="text-lg font-semibold text-white">{address}</h2>
 
-          {/* Map placeholder */}
           <div className="card mt-4 !p-0 overflow-hidden">
             <div className="relative flex h-44 items-center justify-center bg-forest-900">
               <MapPin className="mr-2 h-5 w-5 text-zinc-600" />
               <span className="text-sm text-zinc-600">Satellite view loading...</span>
-              {/* TODO: Replace with actual satellite + boundary + buildings */}
             </div>
           </div>
 
-          {/* Stats */}
           <div className="mt-4 grid grid-cols-2 gap-3">
             {[
               { icon: TreePine, value: `~${intel.estimated_trees} trees`, label: `${intel.canopy_percent}% canopy` },
@@ -197,35 +261,30 @@ export default function OnboardPage() {
             })}
           </div>
 
-          {/* Garden's first words */}
-          <div className="garden-voice mt-6">
-            {intel.narrative}
-          </div>
+          <div className="garden-voice mt-6">{intel.narrative}</div>
 
-          {/* Walk CTA */}
-          <button
-            onClick={handleCreateProperty}
-            className="btn-primary mt-6 w-full"
-          >
+          <button onClick={handleClaim} className="btn-primary mt-6 w-full">
             <Sprout className="mr-2 h-4 w-4" />
-            Walk Your Yard
+            Claim this yard
           </button>
-
           <p className="mt-3 text-center text-xs text-zinc-600">
-            10 minutes. Just walk. The system captures everything automatically.
+            You&apos;ll be the owner. You can invite household members later.
           </p>
 
-          {/* Go back */}
           <button
-            onClick={() => { setStep("address"); setIntel(null); }}
+            onClick={() => {
+              setStep("address");
+              setIntel(null);
+            }}
             className="mt-4 w-full text-center text-xs text-zinc-500"
           >
             ← Different address
           </button>
+
+          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         </div>
       )}
 
-      {/* ── Creating property ───────────────────────── */}
       {step === "creating" && (
         <div className="flex flex-1 flex-col items-center justify-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-forest-300 border-t-transparent" />

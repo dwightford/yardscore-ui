@@ -526,8 +526,8 @@ export default function PropertyPage() {
       {/* Nav */}
       <nav className="border-b border-white/5 bg-[#07110c] sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-5 py-3 flex items-center justify-between">
-          <a href="/dashboard" className="text-zinc-500 text-sm hover:text-white transition-colors">
-            &larr; Dashboard
+          <a href="/profile" className="text-zinc-500 text-sm hover:text-white transition-colors">
+            &larr; Profile
           </a>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-md bg-lime-300/10 border border-lime-300/20 flex items-center justify-center">
@@ -645,10 +645,10 @@ export default function PropertyPage() {
                 Mobile observes. Web interprets. */}
             {isPhoneShell ? (
               <a
-                href="/walk"
+                href={`/walk?property=${id}`}
                 className="block w-full text-center bg-green-600/80 hover:bg-green-600 text-white font-medium rounded-xl py-3 text-sm transition"
               >
-                Start observing
+                Walk this yard
               </a>
             ) : (
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 text-center">
@@ -895,7 +895,7 @@ export default function PropertyPage() {
               Walk History
             </h2>
             <a
-              href="/walk"
+              href={`/walk?property=${id}`}
               className="text-[10px] text-lime-400 hover:text-lime-300 transition-colors"
             >
               Start a walk &rarr;
@@ -959,7 +959,7 @@ export default function PropertyPage() {
         <section>
           <div className="grid grid-cols-4 gap-2">
             <a
-              href="/walk"
+              href={`/walk?property=${id}`}
               className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-lime-300 text-zinc-950 hover:bg-lime-200 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">

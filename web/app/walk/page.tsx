@@ -1,22 +1,23 @@
 "use client";
 
 /**
- * /walk — Field Mapper entry point (Garden Voice edition)
+ * /walk — guided walk flow (Observe).
  *
- * Authenticated users: resolves land units, then renders the guided
- * walk flow (origin anchor → begin walk → shell with prompts → review).
- * Multi-property: shows a selector when the user has more than one property.
+ * Hard-gated: requires auth + a resolved property the user has access to.
+ * No anonymous demo mode — anonymous users never reach real-yard actions.
  *
- * Unauthenticated / no land units: renders the guided walk flow in
- * demo mode with local state only.
+ * Property selection:
+ *   1. `?property=<id>` query param (from /property/[id] observe CTA)
+ *   2. Single property on the account → auto-select
+ *   3. Multiple properties → show picker
+ *   4. No properties → bounce to /onboard
  *
- * Canon: Mobile observes, web interprets.
- * Desktop visitors redirect to /dashboard.
+ * Desktop visitors redirect to /property/[id] (mobile observes, web interprets).
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Sprout } from "lucide-react";
 import GuidedWalkFlow from "../components/field/GuidedWalkFlow";
@@ -32,50 +33,63 @@ interface LandUnit {
 export default function WalkPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
-  // Desktop: redirect to dashboard — mobile observes, web interprets
-  const [deviceChecked, setDeviceChecked] = useState(false);
-  const [isMobile, setIsMobile] = useState(true);
-  useEffect(() => {
-    const mobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-    setIsMobile(mobile);
-    setDeviceChecked(true);
-    if (!mobile) router.replace("/dashboard");
-  }, [router]);
+  const searchParams = useSearchParams();
   const token: string | undefined = (session as any)?.apiToken;
+  const propertyQuery = searchParams.get("property");
+
+  // Hard auth gate (middleware also protects this, but redirect explicitly
+  // so anonymous users get a clear next step).
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!token) {
+      const next = `/walk${propertyQuery ? `?property=${propertyQuery}` : ""}`;
+      router.replace(`/login?mode=signin&next=${encodeURIComponent(next)}`);
+    }
+  }, [status, token, propertyQuery, router]);
+
+  // Desktop redirect.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    if (!mobile && propertyQuery) {
+      router.replace(`/property/${propertyQuery}`);
+    } else if (!mobile) {
+      router.replace("/dashboard");
+    }
+  }, [propertyQuery, router]);
 
   const [landUnits, setLandUnits] = useState<LandUnit[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(propertyQuery);
   const [resolved, setResolved] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setResolved(true);
-      return;
-    }
+    if (!token) return;
     apiFetch(token, `${API}/land_units`)
       .then((r) => r.json())
       .then((data) => {
-        const units: LandUnit[] = Array.isArray(data)
-          ? data
-          : (data.land_units ?? []);
+        const units: LandUnit[] = Array.isArray(data) ? data : data.land_units ?? [];
         setLandUnits(units);
-        if (units.length === 1) setSelectedId(units[0].id);
+        if (propertyQuery && units.some((u) => u.id === propertyQuery)) {
+          setSelectedId(propertyQuery);
+        } else if (units.length === 1) {
+          setSelectedId(units[0].id);
+        } else if (units.length === 0) {
+          router.replace("/onboard");
+          return;
+        }
       })
       .catch(() => {})
       .finally(() => setResolved(true));
-  }, [token]);
+  }, [token, propertyQuery, router]);
 
   const selectedUnit = landUnits.find((u) => u.id === selectedId) ?? null;
-  const propertyLabel =
-    selectedUnit?.name || selectedUnit?.address || "Your Property";
+  const propertyLabel = selectedUnit?.name || selectedUnit?.address || "Your Property";
 
   const handleViewProperty = useCallback(() => {
     if (selectedId) router.push(`/property/${selectedId}`);
   }, [selectedId, router]);
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
-  if (status === "loading" || !resolved) {
+  if (status === "loading" || !token || !resolved) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-black">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-forest-300/30 border-t-forest-300" />
@@ -83,16 +97,13 @@ export default function WalkPage() {
     );
   }
 
-  // ── Multi-property selector (Garden Voice styled) ─────────────────────────
-  if (token && landUnits.length > 1 && !selectedId) {
+  if (landUnits.length > 1 && !selectedId) {
     return (
       <div className="flex h-[100dvh] flex-col items-center justify-center bg-forest-950 px-6">
         <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-forest-300/20 bg-forest-300/10">
           <Sprout className="h-6 w-6 text-forest-300" />
         </div>
-        <h1 className="mb-6 font-display text-xl font-bold text-white">
-          Which yard?
-        </h1>
+        <h1 className="mb-6 font-display text-xl font-bold text-white">Which yard?</h1>
         <div className="flex w-full max-w-xs flex-col gap-2">
           {landUnits.map((u) => (
             <button
@@ -113,8 +124,7 @@ export default function WalkPage() {
     );
   }
 
-  // ── Authenticated with a resolved land unit → guided walk flow ────────────
-  if (token && selectedId) {
+  if (selectedId) {
     return (
       <GuidedWalkFlow
         token={token}
@@ -125,6 +135,10 @@ export default function WalkPage() {
     );
   }
 
-  // ── Demo fallback → guided walk flow without credentials ──────────────────
-  return <GuidedWalkFlow propertyLabel="108 Buena Vista Way" />;
+  // Fallback: no selection resolved (shouldn't happen with the redirects above).
+  return (
+    <div className="flex h-[100dvh] items-center justify-center bg-black">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-forest-300/30 border-t-forest-300" />
+    </div>
+  );
 }

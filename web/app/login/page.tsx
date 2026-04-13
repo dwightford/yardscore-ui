@@ -1,11 +1,49 @@
 "use client";
 
-import { useState } from "react";
+/**
+ * /login — 6-digit email code auth (+ Google one-tap).
+ *
+ * Auth continuity: preserves `next`, `address`, and `intent` across the
+ * code flow so the user lands exactly where they were. Default post-auth
+ * destination is `/dashboard` (which redirects to the user's property).
+ *
+ * `?mode=register|signin` tunes the headline copy only — the underlying
+ * flow is the same 6-digit code (allowlist-gated).
+ */
+
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export default function LoginPage() {
+function LoginInner() {
+  const searchParams = useSearchParams();
+  const mode = (searchParams.get("mode") === "register" ? "register" : "signin") as
+    | "register"
+    | "signin";
+  const nextRaw = searchParams.get("next") ?? "/dashboard";
+  const address = searchParams.get("address") ?? "";
+  const intent = searchParams.get("intent") ?? "";
+
+  // Preserve address + intent on the post-auth destination.
+  function buildNext(): string {
+    try {
+      // Only allow relative paths; block open redirects.
+      if (!nextRaw.startsWith("/")) return "/dashboard";
+      const url = new URL(nextRaw, "http://x");
+      if (address && !url.searchParams.has("address")) {
+        url.searchParams.set("address", address);
+      }
+      if (intent && !url.searchParams.has("intent")) {
+        url.searchParams.set("intent", intent);
+      }
+      return url.pathname + (url.search || "");
+    } catch {
+      return "/dashboard";
+    }
+  }
+
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<"email" | "code" | "loading">("email");
   const [code, setCode] = useState("");
@@ -16,7 +54,6 @@ export default function LoginPage() {
     if (!email.trim()) return;
     setStep("loading");
     setError("");
-
     try {
       const r = await fetch(`${API}/auth/send-code`, {
         method: "POST",
@@ -24,11 +61,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim() }),
       });
       const data = await r.json();
-
-      if (r.ok && data.sent) {
-        setStep("code");
-      } else {
-        setError(data.detail || data.reason || "Could not send code. Are you on the early access list?");
+      if (r.ok && data.sent) setStep("code");
+      else {
+        setError(
+          data.detail ||
+            data.reason ||
+            "Could not send code. Are you on the early access list?",
+        );
         setStep("email");
       }
     } catch {
@@ -53,32 +92,46 @@ export default function LoginPage() {
       setError("Invalid or expired code. Try again.");
       setStep("code");
     } else {
-      window.location.href = "/dashboard";
+      window.location.href = buildNext();
     }
   }
+
+  const title =
+    mode === "register" ? "Create your YardScore account" : "Sign in to YardScore";
+  const subtitle =
+    step === "code"
+      ? "Check your email for the code"
+      : mode === "register"
+        ? "We'll email you a 6-digit code to finish creating your account."
+        : "We'll email you a 6-digit code to sign you in.";
 
   return (
     <div className="min-h-screen bg-[#07110c] flex items-center justify-center px-5">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="mx-auto w-14 h-14 rounded-2xl bg-lime-300/10 border border-lime-300/20 flex items-center justify-center mb-4">
             <svg viewBox="0 0 24 24" className="w-7 h-7 text-lime-300" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 22c-4-4-8-7.5-8-12a8 8 0 0 1 16 0c0 4.5-4 8-8 12Z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-white">Sign in to YardScore</h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            {step === "code" ? "Check your email for the code" : "We'll email you a 6-digit code"}
-          </p>
+          <h1 className="text-xl font-bold text-white">{title}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{subtitle}</p>
+          {address && intent === "claim" && (
+            <p className="mt-3 rounded-lg bg-lime-300/5 border border-lime-300/20 px-3 py-2 text-xs text-lime-200">
+              You&apos;ll claim <span className="font-medium">{address}</span> after you sign in.
+            </p>
+          )}
+          {address && intent === "request_access" && (
+            <p className="mt-3 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-xs text-zinc-300">
+              You&apos;ll request access to <span className="font-medium">{address}</span> after you sign in.
+            </p>
+          )}
         </div>
 
-        {/* Step 1: Email + Google */}
         {step === "email" && (
           <div className="space-y-4">
-            {/* Google sign-in */}
             <button
-              onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+              onClick={() => signIn("google", { callbackUrl: buildNext() })}
               className="w-full h-12 bg-white rounded-xl text-zinc-900 font-semibold text-sm hover:bg-zinc-100 transition-colors flex items-center justify-center gap-3"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -96,7 +149,6 @@ export default function LoginPage() {
               <div className="flex-1 h-px bg-white/10" />
             </div>
 
-            {/* Email code */}
             <form onSubmit={handleRequestCode} className="space-y-4">
               <input
                 type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -113,13 +165,12 @@ export default function LoginPage() {
               )}
               <button type="submit" disabled={!email.trim()}
                 className="w-full h-12 bg-white/10 border border-white/10 text-white font-semibold rounded-xl text-sm hover:bg-white/15 transition-colors disabled:opacity-50">
-                Continue with Email
+                Email me a code
               </button>
             </form>
           </div>
         )}
 
-        {/* Step 2: Code */}
         {step === "code" && (
           <form onSubmit={handleVerifyCode} className="space-y-4">
             <p className="text-xs text-zinc-400 text-center">
@@ -137,7 +188,7 @@ export default function LoginPage() {
             )}
             <button type="submit" disabled={code.length < 6}
               className="w-full h-12 bg-lime-300 text-zinc-950 font-semibold rounded-xl text-sm hover:bg-lime-200 transition-colors disabled:opacity-50">
-              Sign In
+              {mode === "register" ? "Create account" : "Sign in"}
             </button>
             <button type="button" onClick={() => { setStep("email"); setCode(""); setError(""); }}
               className="w-full text-xs text-zinc-500 hover:text-zinc-300">
@@ -146,7 +197,6 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* Loading */}
         {step === "loading" && (
           <div className="text-center py-8">
             <div className="w-10 h-10 border-4 border-lime-300 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -154,10 +204,38 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="mt-8 text-center">
-          <a href="/" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">← Back to YardScore</a>
+        <div className="mt-8 text-center space-y-2">
+          {mode === "signin" ? (
+            <a
+              href={`/login?mode=register${nextRaw !== "/dashboard" ? `&next=${encodeURIComponent(nextRaw)}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}${intent ? `&intent=${encodeURIComponent(intent)}` : ""}`}
+              className="block text-xs text-zinc-400 hover:text-zinc-200"
+            >
+              New here? Create an account →
+            </a>
+          ) : (
+            <a
+              href={`/login?mode=signin${nextRaw !== "/dashboard" ? `&next=${encodeURIComponent(nextRaw)}` : ""}${address ? `&address=${encodeURIComponent(address)}` : ""}${intent ? `&intent=${encodeURIComponent(intent)}` : ""}`}
+              className="block text-xs text-zinc-400 hover:text-zinc-200"
+            >
+              Already have an account? Sign in →
+            </a>
+          )}
+          <a href="/" className="block text-xs text-zinc-500 hover:text-zinc-300">
+            ← Back to YardScore
+          </a>
+          <p className="text-[10px] text-zinc-600 pt-2">
+            Build {process.env.NEXT_PUBLIC_BUILD_SHA || "dev"}
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#07110c]" />}>
+      <LoginInner />
+    </Suspense>
   );
 }
