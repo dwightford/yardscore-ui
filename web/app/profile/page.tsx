@@ -150,9 +150,61 @@ export default function ProfilePage() {
           )
         )}
 
-        {/* About / Troubleshooting */}
+        {/* Preferences */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h2 className="text-sm font-semibold text-white mb-3">About</h2>
+          <h2 className="text-sm font-semibold text-white mb-3">Preferences</h2>
+          <p className="text-xs text-zinc-400">
+            Per-yard preferences (outcomes, light, planting style) live on each
+            property. Open your property home to adjust them.
+          </p>
+        </div>
+
+        {/* Integrations — canonical home for image import + external connections */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h2 className="text-sm font-semibold text-white mb-1">Integrations</h2>
+          <p className="text-xs text-zinc-500 mb-4">
+            Connect external photo libraries and services. These live here, not
+            in the mainline app flow.
+          </p>
+          <div className="space-y-2">
+            {[
+              {
+                name: "Google Photos",
+                desc: "Import past yard photos for passive species ID.",
+                status: "Pending verification",
+              },
+              {
+                name: "iCloud / Apple Photos",
+                desc: "Bulk import from your camera roll.",
+                status: "Not yet available",
+              },
+              {
+                name: "Camera",
+                desc: "Live capture during Observe. Enabled on mobile.",
+                status: "Built in",
+              },
+            ].map((row) => (
+              <div
+                key={row.name}
+                className="flex items-start justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-white">{row.name}</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">{row.desc}</p>
+                </div>
+                <span className="flex-none rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-400">
+                  {row.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Troubleshooting / About */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h2 className="text-sm font-semibold text-white mb-3">
+            About & troubleshooting
+          </h2>
           <dl className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <dt className="text-zinc-500">Build</dt>

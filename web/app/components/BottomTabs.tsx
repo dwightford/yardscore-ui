@@ -1,49 +1,37 @@
 "use client";
 
 /**
- * BottomTabs — phone-only authenticated mobile chrome
+ * BottomTabs — phone-only authenticated mobile chrome.
  *
- * Canon (YardScore Authenticated Surface Separation, 2026-04-09):
- *   - Authenticated phone:   shows the mobile capture nav (Walk | Ask | Map)
- *   - Authenticated desktop: this component renders nothing.
- *                            Desktop uses DesktopTopNav instead.
- *   - Unauthenticated:       this component renders nothing on the public
- *                            landing page (HIDDEN_ON includes "/").
+ * Canon (yardscore-site-map-and-route-truth-v1):
+ *   - The only primary post-auth surfaces are Progress and Observe.
+ *   - Map is a secondary review surface; reachable from property
+ *     quick-actions, not from primary nav.
  *
- * During walks, the tab bar also hides. Camera is the app.
+ * During walks, the tab bar hides. Camera is the app.
  */
 
 import { usePathname } from "next/navigation";
-import {
-  Footprints,
-  Home,
-  Map,
-} from "lucide-react";
+import { Activity, Footprints } from "lucide-react";
 import { useDeviceShell } from "@/hooks/useDeviceShell";
 
-// Phone tabs only — desktop has its own top nav and never sees this bar.
-// `/dashboard` is a redirect-only waypoint → users always land on their
-// property home.
+// `/dashboard` is a redirect-only waypoint → users land on their property
+// home, which renders Progress content.
 const PHONE_TABS = [
   {
     href: "/dashboard",
-    label: "Home",
-    icon: Home,
+    label: "Progress",
+    icon: Activity,
   },
   {
     href: "/walk",
-    label: "Walk",
+    label: "Observe",
     icon: Footprints,
-  },
-  {
-    href: "/map",
-    label: "Map",
-    icon: Map,
   },
 ];
 
 /** Pages where the tab bar should NOT appear */
-const HIDDEN_ON = ["/login", "/share", "/walk", "/onboard", "/garden"];
+const HIDDEN_ON = ["/login", "/register", "/share", "/walk", "/onboard", "/garden"];
 
 export default function BottomTabs() {
   const pathname = usePathname();

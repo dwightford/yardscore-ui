@@ -32,7 +32,7 @@ import { useDeviceShell } from "@/hooks/useDeviceShell";
 const DESKTOP_LINKS = [
   {
     href: "/dashboard",
-    label: "Property Home",
+    label: "Progress",
     matchPrefixes: ["/dashboard", "/property"],
     icon: Home,
   },
@@ -51,7 +51,7 @@ const DESKTOP_LINKS = [
 ];
 
 /** Routes where the desktop top nav should NOT render */
-const HIDDEN_ON = ["/login", "/share", "/walk", "/onboard", "/garden"];
+const HIDDEN_ON = ["/login", "/register", "/share", "/walk", "/onboard", "/garden"];
 
 export default function DesktopTopNav() {
   const pathname = usePathname();
