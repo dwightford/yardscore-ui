@@ -369,6 +369,28 @@ export default function PropertyPage() {
   const [walks, setWalks] = useState<WalkHistoryEntry[]>([]);
   const [walksLoading, setWalksLoading] = useState(true);
 
+  // Access-request state. A requester whose property_members row is still
+  // pending (accepted_at IS NULL) gets 404 from /land_units/{id}; in that
+  // case we check /me/invitations to detect "you've asked, waiting on owner."
+  const [pendingForMe, setPendingForMe] = useState<{
+    property_name?: string | null;
+    address?: string | null;
+  } | null>(null);
+
+  // Owner inbox — pending self-claim requests + unaccepted invites on
+  // this specific property. Populated from /me/pending-requests.
+  interface PendingRequest {
+    land_unit_id: string;
+    user_id: string;
+    requester_email?: string | null;
+    requester_name?: string | null;
+    role: string;
+    invited_at: string;
+    self_claim: boolean;
+  }
+  const [ownerInbox, setOwnerInbox] = useState<PendingRequest[]>([]);
+  const [approvingUser, setApprovingUser] = useState<string | null>(null);
+
   type WebTab = "home" | "structure" | "signals" | "readiness" | "narrative";
   const [activeTab, setActiveTab] = useState<WebTab>("home");
 
@@ -382,11 +404,77 @@ export default function PropertyPage() {
         apiFetch(token, `${API}/land_units/${id}`),
         apiFetch(token, `${API}/yardscore/${id}/latest`),
       ]);
-      if (luRes.ok) setLandUnit(await luRes.json());
+      if (luRes.ok) {
+        setLandUnit(await luRes.json());
+      } else if (luRes.status === 404) {
+        // Could be a pending access request. Check /me/invitations.
+        try {
+          const invRes = await apiFetch(token, `${API}/me/invitations`);
+          if (invRes.ok) {
+            const rows = await invRes.json();
+            const hit = Array.isArray(rows)
+              ? rows.find((r: any) => String(r.land_unit_id) === String(id))
+              : null;
+            if (hit) {
+              setPendingForMe({
+                property_name: hit.property_name,
+                address: hit.address,
+              });
+            }
+          }
+        } catch {}
+      }
       if (scoreRes.ok) setScore(await scoreRes.json());
     } catch {}
     setLuLoading(false);
   }, [token, id]);
+
+  const fetchOwnerInbox = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiFetch(token, `${API}/me/pending-requests`);
+      if (!res.ok) return;
+      const rows = await res.json();
+      const filtered: PendingRequest[] = Array.isArray(rows)
+        ? rows.filter((r: any) => String(r.land_unit_id) === String(id))
+        : [];
+      setOwnerInbox(filtered);
+    } catch {}
+  }, [token, id]);
+
+  const approveRequest = useCallback(
+    async (userId: string) => {
+      if (!token) return;
+      setApprovingUser(userId);
+      try {
+        const res = await apiFetch(
+          token,
+          `${API}/land_units/${id}/members/${userId}/approve`,
+          { method: "POST" },
+        );
+        if (res.ok) await fetchOwnerInbox();
+      } catch {}
+      setApprovingUser(null);
+    },
+    [token, id, fetchOwnerInbox],
+  );
+
+  const denyRequest = useCallback(
+    async (userId: string) => {
+      if (!token) return;
+      setApprovingUser(userId);
+      try {
+        const res = await apiFetch(
+          token,
+          `${API}/land_units/${id}/members/${userId}`,
+          { method: "DELETE" },
+        );
+        if (res.ok || res.status === 204) await fetchOwnerInbox();
+      } catch {}
+      setApprovingUser(null);
+    },
+    [token, id, fetchOwnerInbox],
+  );
 
   const fetchStructure = useCallback(async () => {
     if (!token) return;
@@ -465,7 +553,16 @@ export default function PropertyPage() {
     fetchReadiness();
     fetchProfiles();
     fetchWalks();
-  }, [fetchLandUnit, fetchStructure, fetchSignals, fetchReadiness, fetchProfiles, fetchWalks]);
+    fetchOwnerInbox();
+  }, [
+    fetchLandUnit,
+    fetchStructure,
+    fetchSignals,
+    fetchReadiness,
+    fetchProfiles,
+    fetchWalks,
+    fetchOwnerInbox,
+  ]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -563,8 +660,80 @@ export default function PropertyPage() {
               </div>
             )}
           </div>
+        ) : pendingForMe ? (
+          <div className="rounded-2xl border border-lime-300/20 bg-lime-300/5 p-5">
+            <p className="text-[10px] uppercase tracking-wide text-lime-300/80">Request pending</p>
+            <h1 className="mt-1 text-xl font-bold text-white">
+              {pendingForMe.property_name || "This yard"}
+            </h1>
+            {pendingForMe.address && (
+              <p className="mt-0.5 text-xs text-zinc-400">{pendingForMe.address}</p>
+            )}
+            <p className="mt-3 text-sm text-zinc-300">
+              You&apos;ve requested access to this yard. The owner has been
+              notified. You&apos;ll see the yard here once they approve.
+            </p>
+            <a
+              href="/profile"
+              className="mt-4 inline-block text-xs text-lime-300 hover:text-lime-200"
+            >
+              Back to profile →
+            </a>
+          </div>
         ) : (
           <p className="text-zinc-400">Property not found.</p>
+        )}
+
+        {/* Owner inbox: pending self-claim requests on this yard */}
+        {ownerInbox.length > 0 && (
+          <section className="rounded-2xl border border-yellow-400/20 bg-yellow-400/5 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-yellow-200">
+                {ownerInbox.length === 1
+                  ? "1 person is requesting access"
+                  : `${ownerInbox.length} people are requesting access`}
+              </h2>
+            </div>
+            <div className="space-y-2">
+              {ownerInbox.map((req) => (
+                <div
+                  key={req.user_id}
+                  className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-white">
+                      {req.requester_name || req.requester_email || req.user_id}
+                    </p>
+                    {req.requester_email && req.requester_name && (
+                      <p className="truncate text-[10px] text-zinc-500">
+                        {req.requester_email}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-[10px] text-zinc-500">
+                      {req.self_claim ? "Self-claim request" : "Pending invite"} ·{" "}
+                      role {req.role}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => approveRequest(req.user_id)}
+                      disabled={approvingUser === req.user_id}
+                      className="rounded-lg bg-lime-300 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-lime-200 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => denyRequest(req.user_id)}
+                      disabled={approvingUser === req.user_id}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Deny
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* ── Tab spine ────────────────────────────────────────────────────── */}
